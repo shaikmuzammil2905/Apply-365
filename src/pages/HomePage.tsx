@@ -25,9 +25,9 @@ export const HomePage: React.FC = () => {
       <section id="our-services" className="py-16 lg:py-24 bg-white border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          {/* Section Header */}
-          <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F1F7FF] text-[#104A96] text-xs font-bold uppercase tracking-wider mb-3">
+          {/* Section Header matching image copy 8.png */}
+          <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#F1F7FF] text-[#104A96] text-xs font-bold uppercase tracking-wider mb-2.5">
               <Sparkles className="w-3.5 h-3.5 text-[#FF8500]" />
               <span>Comprehensive Facilitation</span>
             </div>
@@ -36,8 +36,8 @@ export const HomePage: React.FC = () => {
               Our Documentation & Business Services
             </h2>
             
-            <p className="mt-4 text-base sm:text-lg text-slate-600">
-              Clear document checklists, zero confusion, and trusted end-to-end guidance for Indian civic identity and commercial compliance.
+            <p className="mt-3 text-sm sm:text-base text-slate-600">
+              Select any service below to view detailed requirements, acceptable documents, process steps, and apply immediately.
             </p>
           </div>
 
@@ -162,3 +162,4 @@ export const HomePage: React.FC = () => {
     </div>
   );
 };
+

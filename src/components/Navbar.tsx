@@ -72,12 +72,12 @@ export const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-[#104A96] rounded-lg p-1">
+          {/* Logo - Clean transparent, clearly visible, zero patchwork */}
+          <Link to="/" className="flex items-center group focus:outline-none transition-transform duration-200 hover:scale-[1.02]">
             <img 
-              src="/apply365_logo.png" 
+              src="/apply365_transparent_logo.png" 
               alt="Apply365 — Services for People" 
-              className="h-9 sm:h-11 w-auto object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+              className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm"
             />
           </Link>
 
@@ -359,3 +359,4 @@ export const Navbar: React.FC = () => {
     </header>
   );
 };
+

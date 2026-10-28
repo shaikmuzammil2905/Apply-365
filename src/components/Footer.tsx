@@ -19,13 +19,13 @@ export const Footer: React.FC = () => {
         {/* Top Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 pb-12 border-b border-blue-900/60">
           
-          {/* Brand & Introduction (4 cols) */}
+          {/* Brand & Introduction (4 cols) - Clean transparent logo, zero patchwork */}
           <div className="lg:col-span-4 space-y-4">
-            <Link to="/" className="inline-block bg-white/95 p-2 rounded-xl">
+            <Link to="/" className="inline-block transition-transform duration-200 hover:scale-[1.02]">
               <img 
-                src="/apply365_logo.png" 
+                src="/apply365_logo_white.png" 
                 alt="Apply365 — Services for People" 
-                className="h-10 w-auto object-contain"
+                className="h-11 sm:h-12 w-auto object-contain filter drop-shadow"
               />
             </Link>
             
@@ -230,3 +230,4 @@ export const Footer: React.FC = () => {
     </footer>
   );
 };
+

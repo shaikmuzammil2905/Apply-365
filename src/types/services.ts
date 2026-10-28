@@ -32,3 +32,4 @@ export interface ApplicationFormData {
   confirmedDocuments: string[];
   agreePrivacy: boolean;
 }
+

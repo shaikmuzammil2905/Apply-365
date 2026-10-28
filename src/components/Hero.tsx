@@ -8,7 +8,15 @@ import {
   ArrowRight, 
   ArrowDown,
   CheckCircle2,
-  PhoneCall
+  PhoneCall,
+  Fingerprint,
+  CreditCard,
+  Vote,
+  Building2,
+  FileCheck2,
+  Landmark,
+  HeartHandshake,
+  ChevronRight
 } from 'lucide-react';
 
 export const Hero: React.FC = () => {
@@ -21,55 +29,45 @@ export const Hero: React.FC = () => {
     }
   };
 
+  const heroSevenServices = [
+    { title: 'Aadhaar Card', slug: 'aadhaar', icon: Fingerprint, color: '#0066cd', bg: '#e8f3fc', tag: 'Address & Enrolment' },
+    { title: 'PAN Card', slug: 'pan-card', icon: CreditCard, color: '#104A96', bg: '#eef4ff', tag: 'New & Correction' },
+    { title: 'Voter ID', slug: 'voter-id', icon: Vote, color: '#0284c7', bg: '#f0f9ff', tag: 'Enrolment & Shift' },
+    { title: 'MSME Registration', slug: 'msme', icon: Building2, color: '#FF8500', bg: '#fff7ed', tag: 'Udyam Certificate' },
+    { title: 'Labour License', slug: 'labour-license', icon: FileCheck2, color: '#d97706', bg: '#fef3c7', tag: 'Shops & Establishments' },
+    { title: 'UAN / PF Services', slug: 'uan-pf', icon: Landmark, color: '#0891b2', bg: '#ecfeff', tag: 'EPFO KYC & Claims' },
+    { title: 'ESI Details Update', slug: 'esi', icon: HeartHandshake, color: '#059669', bg: '#ecfdf5', tag: 'Family & Pehchan' },
+  ];
+
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-[#F1F7FF] via-[#F8FBFF] to-white pt-8 pb-16 lg:pt-12 lg:pb-20 border-b border-slate-100">
+    <section className="relative overflow-hidden bg-gradient-to-b from-[#F1F7FF] via-[#F8FBFF] to-white pt-6 pb-16 lg:pt-10 lg:pb-20 border-b border-slate-100">
       
-      {/* Background Graphic Elements & Responsive Bright Hero BG */}
+      {/* Background Graphic from image copy 6.png with bright crisp styling */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Desktop Hero Banner Background */}
         <div 
-          className="hidden md:block absolute inset-0 opacity-[0.22] lg:opacity-[0.28] bg-center bg-no-repeat bg-cover filter brightness-110 contrast-105"
-          style={{ backgroundImage: `url('/hero-desktop.png')` }}
+          className="absolute inset-0 opacity-[0.28] lg:opacity-[0.35] bg-center bg-no-repeat bg-cover filter brightness-110 contrast-105"
+          style={{ backgroundImage: `url('/hero-bg-graphic.png')` }}
         />
-        {/* Mobile Hero Banner Background */}
-        <div 
-          className="md:hidden absolute inset-0 opacity-[0.24] bg-top bg-no-repeat bg-cover filter brightness-110 contrast-105"
-          style={{ backgroundImage: `url('/hero-mobile.png')` }}
-        />
-        {/* Soft Ambient Radial Gradients */}
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#104A96]/10 rounded-full blur-3xl" />
         <div className="absolute top-1/2 -right-32 w-96 h-96 bg-[#FF8500]/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Responsive Hero Banner Graphic Card (Showing the User's Provided Images with Bright Vibrance) */}
-        <div className="mb-8 rounded-2xl overflow-hidden shadow-lg border border-white/80 bg-white/40 backdrop-blur-sm p-1.5 transition-all duration-300 hover:shadow-xl">
-          {/* Desktop Banner Display */}
-          <div className="hidden md:block relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-blue-50 via-white to-blue-50">
-            <img 
-              src="/hero-desktop.png" 
-              alt="Apply365 Hero Graphic — Services for People"
-              className="w-full h-auto object-cover filter brightness-[1.04] contrast-[1.02] transition-transform duration-700 hover:scale-[1.01]"
-              loading="eager"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent pointer-events-none" />
-          </div>
-
-          {/* Mobile Banner Display */}
-          <div className="md:hidden relative w-full overflow-hidden rounded-xl bg-gradient-to-b from-blue-50 to-white">
-            <img 
-              src="/hero-mobile.png" 
-              alt="Apply365 Mobile Hero Graphic — Services for People"
-              className="w-full h-auto object-cover filter brightness-[1.05] contrast-[1.02]"
-              loading="eager"
-            />
-          </div>
+        {/* Top Hero Banner Graphic as-it-is from image copy 5.png */}
+        <div className="mb-10 rounded-2xl overflow-hidden shadow-md border border-slate-200/80 bg-white p-1 transition-all duration-300 hover:shadow-lg">
+          <img 
+            src="/hero-person-graphic.png" 
+            alt="Apply365 — Government & Business Services Made Easy"
+            className="w-full h-auto object-cover rounded-xl filter brightness-[1.03] contrast-[1.02]"
+            loading="eager"
+          />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+        {/* Main Hero Split Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           
-          {/* Left Column: Headings, Value Prop, Trust Indicators & CTAs */}
+          {/* Left Column: Headings, Trust Badges & Action CTAs (7 cols) */}
           <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
             
             {/* Eyebrow */}
@@ -79,7 +77,7 @@ export const Hero: React.FC = () => {
             </div>
 
             {/* Main Headline */}
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-extrabold tracking-tight leading-[1.15]">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.15]">
               <span className="text-[#104A96] block sm:inline">Your Documents.</span>{' '}
               <span className="text-[#FF8500] block sm:inline">Our Priority.</span>
             </h1>
@@ -162,53 +160,75 @@ export const Hero: React.FC = () => {
 
           </div>
 
-          {/* Right Column: Quick Highlights & Service Directory Cards */}
+          {/* Right Column: 7 Services List Styled Exactly like image copy 7.png (5 cols) */}
           <div className="lg:col-span-5">
-            <div className="bg-white/90 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-blue-100/80 space-y-4">
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-xl border border-blue-100/90 space-y-4">
+              
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <div className="w-3 h-3 rounded-full bg-[#35A936] animate-ping" />
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Services Assistance Active</span>
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Our 7 Core Services
+                  </span>
                 </div>
-                <span className="text-xs bg-[#F1F7FF] text-[#104A96] font-semibold px-2.5 py-1 rounded-full">
-                  All 7 Services
-                </span>
+                <Link
+                  to="/services"
+                  className="text-xs font-semibold text-[#104A96] hover:text-[#FF8500] flex items-center gap-1"
+                >
+                  View All &rarr;
+                </Link>
               </div>
 
-              <div className="space-y-2.5">
-                {[
-                  { name: 'Aadhaar Card Address Update', route: '/services/aadhaar', time: '5-15 Days' },
-                  { name: 'New PAN Card & Corrections', route: '/services/pan-card', time: 'Fast e-PAN' },
-                  { name: 'Voter ID Enrolment & Shift', route: '/services/voter-id', time: 'Form 6 / 8' },
-                  { name: 'MSME / Udyam Certificate', route: '/services/msme', time: 'Lifetime Valid' },
-                  { name: 'Labour License (Shops & Est.)', route: '/services/labour-license', time: 'State Compliant' },
-                  { name: 'EPFO / UAN & PF Services', route: '/services/uan-pf', time: 'KYC & Claims' },
-                  { name: 'ESIC Details & Family Update', route: '/services/esi', time: 'Pehchan Card' },
-                ].map((item, idx) => (
-                  <Link
-                    key={idx}
-                    to={item.route}
-                    className="flex items-center justify-between p-2.5 rounded-xl hover:bg-[#F1F7FF] transition-colors border border-transparent hover:border-blue-100 group"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <CheckCircle2 className="w-4 h-4 text-[#35A936]" />
-                      <span className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-[#104A96] transition-colors">
-                        {item.name}
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-medium text-slate-500 bg-slate-100 group-hover:bg-white px-2 py-0.5 rounded transition-colors">
-                      {item.time}
-                    </span>
-                  </Link>
-                ))}
+              {/* The 7 Services Stack matching image copy 7.png */}
+              <div className="space-y-2">
+                {heroSevenServices.map((service, idx) => {
+                  const IconComp = service.icon;
+                  return (
+                    <Link
+                      key={idx}
+                      to={`/services/${service.slug}`}
+                      className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl hover:bg-[#F1F7FF] transition-all duration-200 border border-slate-100/80 hover:border-blue-200 group bg-white shadow-sm hover:shadow"
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Circular icon badge matching image copy 7.png */}
+                        <div 
+                          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-110"
+                          style={{ 
+                            backgroundColor: service.bg, 
+                            color: service.color 
+                          }}
+                        >
+                          <IconComp className="w-5 h-5" />
+                        </div>
+
+                        <div>
+                          <div className="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-[#104A96] transition-colors">
+                            {service.title}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {service.tag}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-slate-400 group-hover:text-[#FF8500] transition-colors">
+                        <span className="text-[11px] font-semibold hidden sm:inline group-hover:underline">
+                          Details
+                        </span>
+                        <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
 
-              <div className="pt-2 border-t border-slate-100">
+              <div className="pt-3 border-t border-slate-100">
                 <Link
                   to="/documents-required"
-                  className="flex items-center justify-center gap-2 text-xs font-bold text-[#104A96] hover:text-[#FF8500] transition-colors py-1"
+                  className="flex items-center justify-center gap-2 text-xs font-bold text-[#104A96] hover:text-[#FF8500] transition-colors py-1 text-center"
                 >
-                  <span>Check Required Documents Checklist Before Applying &rarr;</span>
+                  <CheckCircle2 className="w-4 h-4 text-[#35A936]" />
+                  <span>Check All Document Requirements Before Applying &rarr;</span>
                 </Link>
               </div>
 

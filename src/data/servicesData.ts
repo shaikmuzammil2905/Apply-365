@@ -281,3 +281,4 @@ export const servicesData: ServiceDetail[] = [
 export const getServiceBySlug = (slug: string): ServiceDetail | undefined => {
   return servicesData.find(service => service.slug === slug || service.id === slug);
 };
+

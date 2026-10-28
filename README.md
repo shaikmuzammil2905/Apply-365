@@ -80,3 +80,4 @@ npm run preview
 ## 📜 Legal & Regulatory Notice
 
 *Apply365 is an independent, private documentation assistance and advisory service. Apply365 is NOT a government agency or affiliated with UIDAI, the Income Tax Department, the Election Commission of India, EPFO, ESIC, or the Ministry of MSME. All final application approvals and dispatches rest exclusively with the relevant statutory authorities.*
+
