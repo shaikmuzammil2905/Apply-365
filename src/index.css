@@ -9,7 +9,7 @@
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: #1e293b;
-    background-color: #F7F9FC;
+    background-color: #FAFBFD;
   }
 }
 
@@ -29,36 +29,36 @@
   background: #104A96;
 }
 
-/* Subtle animations */
-@keyframes floatGentle {
+/* Scroll Entrance Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes gentleFloat {
   0%, 100% {
     transform: translateY(0px);
   }
   50% {
-    transform: translateY(-6px);
+    transform: translateY(-5px);
   }
 }
 
 .animate-float {
-  animation: floatGentle 4s ease-in-out infinite;
+  animation: gentleFloat 3.5s ease-in-out infinite;
 }
 
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 0.9;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.02);
-  }
-}
-
-.animate-glow {
-  animation: pulseGlow 3s ease-in-out infinite;
-}
-
-/* Print Styles for Document Checklist */
+/* Print Styles */
 @media print {
   header, footer, .no-print, button, .floating-actions {
     display: none !important;
@@ -72,4 +72,3 @@
     margin: 0 !important;
   }
 }
-

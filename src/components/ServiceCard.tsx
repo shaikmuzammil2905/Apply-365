@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowRight, 
   Fingerprint, 
@@ -10,7 +9,8 @@ import {
   Landmark, 
   HeartHandshake,
   CheckCircle2,
-  FileText
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { ServiceDetail } from '../types/services';
 
@@ -29,11 +29,11 @@ interface ServiceCardProps {
 }
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
-  const navigate = useNavigate();
   const IconComponent = iconMap[service.iconName] || Fingerprint;
 
-  const handleCardClick = () => {
-    navigate(`/services/${service.slug}`);
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Open service in new page
+    window.open(`/services/${service.slug}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -44,7 +44,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          handleCardClick();
+          window.open(`/services/${service.slug}`, '_blank', 'noopener,noreferrer');
         }
       }}
       className="group relative bg-white rounded-2xl p-6 sm:p-7 shadow-card hover:shadow-card-hover border border-slate-200/80 hover:border-[#104A96]/40 transition-all duration-300 transform hover:-translate-y-1.5 flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#104A96] focus:ring-offset-2"
@@ -76,8 +76,9 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
         </div>
 
         {/* Title */}
-        <h3 className="text-xl font-bold text-slate-900 group-hover:text-[#104A96] transition-colors mb-2">
-          {service.title}
+        <h3 className="text-xl font-bold text-slate-900 group-hover:text-[#104A96] transition-colors mb-2 flex items-center justify-between">
+          <span>{service.title}</span>
+          <ExternalLink className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         </h3>
 
         {/* Short Description */}
@@ -109,28 +110,26 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
 
       {/* Action Buttons Section */}
       <div className="pt-4 border-t border-slate-100 flex items-center gap-2.5">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/services/${service.slug}`);
-          }}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#F1F7FF] hover:bg-blue-100/80 text-[#104A96] font-bold text-xs sm:text-sm transition-colors"
+        <a
+          href={`/services/${service.slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#F1F7FF] hover:bg-blue-100/80 text-[#104A96] font-bold text-xs sm:text-sm transition-colors text-center"
         >
           <span>View Details</span>
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-        </button>
+        </a>
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/apply?service=${service.id}`);
-          }}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow transition-all"
+        <a
+          href={`/apply?service=${service.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow transition-all text-center"
         >
           <span>Apply Now</span>
-        </button>
+        </a>
       </div>
     </div>
   );
