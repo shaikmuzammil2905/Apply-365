@@ -28,13 +28,13 @@ interface ServicePill {
 }
 
 const sevenServices: ServicePill[] = [
-  { title: 'Aadhaar Card', shortTitle: 'Aadhaar', slug: 'aadhaar', icon: Fingerprint, desktopTop: 16.0, mobileTop: 12.0, color: '#0066cd' },
-  { title: 'PAN Card', shortTitle: 'PAN', slug: 'pan-card', icon: CreditCard, desktopTop: 26.5, mobileTop: 23.0, color: '#104A96' },
-  { title: 'Voter ID', shortTitle: 'Voter ID', slug: 'voter-id', icon: Vote, desktopTop: 37.0, mobileTop: 34.0, color: '#0284c7' },
-  { title: 'MSME Registration', shortTitle: 'MSME', slug: 'msme', icon: Building2, desktopTop: 47.5, mobileTop: 45.0, color: '#FF8500' },
-  { title: 'Labour License', shortTitle: 'Labour License', slug: 'labour-license', icon: FileCheck2, desktopTop: 58.0, mobileTop: 56.0, color: '#d97706' },
-  { title: 'UAN / PF Services', shortTitle: 'UAN / PF', slug: 'uan-pf', icon: Landmark, desktopTop: 68.5, mobileTop: 67.0, color: '#0891b2' },
-  { title: 'ESI Details Update', shortTitle: 'ESI', slug: 'esi', icon: HeartHandshake, desktopTop: 79.0, mobileTop: 78.0, color: '#059669' },
+  { title: 'Aadhaar Card', shortTitle: 'Aadhaar', slug: 'aadhaar', icon: Fingerprint, desktopTop: 16.0, mobileTop: 16.0, color: '#0066cd' },
+  { title: 'PAN Card', shortTitle: 'PAN', slug: 'pan-card', icon: CreditCard, desktopTop: 26.5, mobileTop: 26.5, color: '#104A96' },
+  { title: 'Voter ID', shortTitle: 'Voter ID', slug: 'voter-id', icon: Vote, desktopTop: 37.0, mobileTop: 37.0, color: '#0284c7' },
+  { title: 'MSME Registration', shortTitle: 'MSME', slug: 'msme', icon: Building2, desktopTop: 47.5, mobileTop: 47.5, color: '#FF8500' },
+  { title: 'Labour License', shortTitle: 'Labour License', slug: 'labour-license', icon: FileCheck2, desktopTop: 58.0, mobileTop: 58.0, color: '#d97706' },
+  { title: 'UAN / PF Services', shortTitle: 'UAN / PF', slug: 'uan-pf', icon: Landmark, desktopTop: 68.5, mobileTop: 68.5, color: '#0891b2' },
+  { title: 'ESI Details Update', shortTitle: 'ESI', slug: 'esi', icon: HeartHandshake, desktopTop: 79.0, mobileTop: 79.0, color: '#059669' },
 ];
 
 export const Hero: React.FC = () => {
@@ -249,7 +249,7 @@ export const Hero: React.FC = () => {
 
         </div>
 
-        {/* Hero Artwork Area: Displays the approved artwork with the person, laptop, curves, and the 7 service pills matching Reference Image 2 */}
+        {/* Hero Artwork Area: Displays the clean approved artwork from image copy 11 (zero duplicate buttons, zero stray elements) */}
         <div className="relative w-full overflow-hidden bg-gradient-to-b from-[#F1F7FF]/70 to-[#FAFBFD] px-2 sm:px-4 pt-2 pb-4">
           <div className="relative w-full max-w-lg mx-auto rounded-2xl overflow-hidden shadow-md border border-slate-200/90 bg-white">
             <img 
@@ -259,34 +259,24 @@ export const Hero: React.FC = () => {
               loading="eager"
             />
 
-            {/* Dedicated 7 Service Pills Column Matching Reference Image 2 (image copy 18.png) */}
-            <div className="absolute top-[6%] bottom-[6%] right-[2%] w-[44%] min-[380px]:w-[40%] z-20 flex flex-col justify-between py-1 pointer-events-auto">
-              {sevenServices.map((service, idx) => {
-                const IconComp = service.icon;
-                return (
-                  <a
-                    key={idx}
-                    href={`/services/${service.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between bg-white hover:bg-slate-50 border border-slate-200/90 shadow-[0_2px_4px_rgba(0,0,0,0.08)] hover:shadow-md rounded-full px-2 py-1 min-[360px]:py-1.5 transition-all duration-150 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-[#104A96]"
-                    title={`Open ${service.title} details in new tab`}
-                    aria-label={`View ${service.title} details`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0">
-                        <IconComp className="w-3.5 h-3.5" style={{ color: service.color }} />
-                      </div>
-                      <span className="text-[10px] min-[360px]:text-[11px] sm:text-xs font-bold text-slate-800 group-hover:text-[#104A96] transition-colors truncate leading-none">
-                        {service.shortTitle}
-                      </span>
-                    </div>
-
-                    <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-[#FF8500] group-hover:translate-x-0.5 transition-transform shrink-0 ml-0.5" />
-                  </a>
-                );
-              })}
-            </div>
+            {/* Interactive Clickable Hotspots over all 7 service pills in the artwork */}
+            {sevenServices.map((service, idx) => (
+              <a
+                key={idx}
+                href={`/services/${service.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  top: `${service.mobileTop}%`,
+                  right: '3.5%',
+                  width: '43%',
+                  height: '8.8%',
+                }}
+                className="absolute rounded-full transition-all duration-150 active:scale-95 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
+                title={`Open ${service.title} details in new tab`}
+                aria-label={`View ${service.title} details`}
+              />
+            ))}
 
           </div>
         </div>
