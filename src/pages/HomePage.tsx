@@ -21,8 +21,8 @@ export const HomePage: React.FC = () => {
       {/* 1. Hero Section */}
       <Hero />
 
-      {/* 2. Our Services Section */}
-      <section id="our-services" className="py-16 lg:py-24 bg-white border-b border-slate-100">
+      {/* 2. Our Services Section - Seamless transition with zero awkward gap */}
+      <section id="our-services" className="pt-6 pb-14 sm:pt-8 sm:pb-16 bg-white border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Section Header matching image copy 8.png */}
