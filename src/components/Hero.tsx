@@ -6,6 +6,7 @@ import {
   CheckCircle2, 
   ArrowRight, 
   ArrowDown, 
+  Phone,
   Fingerprint, 
   CreditCard, 
   Vote, 
@@ -18,21 +19,22 @@ import {
 
 interface ServicePill {
   title: string;
+  shortTitle: string;
   slug: string;
   icon: React.ComponentType<{ className?: string }>;
-  topPercent: number; // percentage in artwork
+  desktopTop: number;
+  mobileTop: number;
   color: string;
-  bg: string;
 }
 
 const sevenServices: ServicePill[] = [
-  { title: 'Aadhaar Card', slug: 'aadhaar', icon: Fingerprint, topPercent: 16.0, color: '#0066cd', bg: '#e8f3fc' },
-  { title: 'PAN Card', slug: 'pan-card', icon: CreditCard, topPercent: 26.5, color: '#104A96', bg: '#eef4ff' },
-  { title: 'Voter ID', slug: 'voter-id', icon: Vote, topPercent: 37.0, color: '#0284c7', bg: '#f0f9ff' },
-  { title: 'MSME Registration', slug: 'msme', icon: Building2, topPercent: 47.5, color: '#FF8500', bg: '#fff7ed' },
-  { title: 'Labour License', slug: 'labour-license', icon: FileCheck2, topPercent: 58.0, color: '#d97706', bg: '#fef3c7' },
-  { title: 'UAN / PF Services', slug: 'uan-pf', icon: Landmark, topPercent: 68.5, color: '#0891b2', bg: '#ecfeff' },
-  { title: 'ESI Details Update', slug: 'esi', icon: HeartHandshake, topPercent: 79.0, color: '#059669', bg: '#ecfdf5' },
+  { title: 'Aadhaar Card', shortTitle: 'Aadhaar', slug: 'aadhaar', icon: Fingerprint, desktopTop: 16.0, mobileTop: 12.0, color: '#0066cd' },
+  { title: 'PAN Card', shortTitle: 'PAN', slug: 'pan-card', icon: CreditCard, desktopTop: 26.5, mobileTop: 23.0, color: '#104A96' },
+  { title: 'Voter ID', shortTitle: 'Voter ID', slug: 'voter-id', icon: Vote, desktopTop: 37.0, mobileTop: 34.0, color: '#0284c7' },
+  { title: 'MSME Registration', shortTitle: 'MSME', slug: 'msme', icon: Building2, desktopTop: 47.5, mobileTop: 45.0, color: '#FF8500' },
+  { title: 'Labour License', shortTitle: 'Labour License', slug: 'labour-license', icon: FileCheck2, desktopTop: 58.0, mobileTop: 56.0, color: '#d97706' },
+  { title: 'UAN / PF Services', shortTitle: 'UAN / PF', slug: 'uan-pf', icon: Landmark, desktopTop: 68.5, mobileTop: 67.0, color: '#0891b2' },
+  { title: 'ESI Details Update', shortTitle: 'ESI', slug: 'esi', icon: HeartHandshake, desktopTop: 79.0, mobileTop: 78.0, color: '#059669' },
 ];
 
 export const Hero: React.FC = () => {
@@ -41,19 +43,19 @@ export const Hero: React.FC = () => {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     } else {
-      window.open('/services', '_blank');
+      window.open('/services', '_blank', 'noopener,noreferrer');
     }
   };
 
   return (
-    <section className="relative w-full overflow-hidden bg-[#FAFBFD] border-b border-slate-200/70">
+    <section className="relative w-full overflow-hidden bg-[#FAFBFD] border-b border-slate-200/60">
       
       {/* ========================================================================= */}
-      {/* DESKTOP HERO: Full width composition using the SECOND approved reference artwork */}
+      {/* 1. DESKTOP HERO COMPOSITION (Screen width >= 1024px)                     */}
       {/* ========================================================================= */}
       <div className="hidden lg:block relative w-full max-w-[1700px] mx-auto min-h-[580px] xl:min-h-[640px]">
         
-        {/* Approved Reference Artwork (image copy 11.png) placed on right */}
+        {/* Approved Reference Artwork (hero-approved.png) on the right */}
         <div className="absolute inset-0 z-0 flex justify-end pointer-events-none">
           <div className="relative w-[65%] xl:w-[62%] h-full flex items-center justify-end">
             <img 
@@ -62,8 +64,8 @@ export const Hero: React.FC = () => {
               className="w-full h-full object-cover object-right select-none filter brightness-[1.03] contrast-[1.02]"
               loading="eager"
             />
-            {/* Soft left gradient blending seamlessly with the negative space */}
-            <div className="absolute inset-y-0 left-0 w-48 bg-gradient-to-r from-[#FAFBFD] via-[#FAFBFD]/80 to-transparent pointer-events-none" />
+            {/* Seamless gradient fade into the left negative space */}
+            <div className="absolute inset-y-0 left-0 w-44 bg-gradient-to-r from-[#FAFBFD] via-[#FAFBFD]/80 to-transparent pointer-events-none" />
           </div>
         </div>
 
@@ -76,7 +78,7 @@ export const Hero: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                top: `${service.topPercent}%`,
+                top: `${service.desktopTop}%`,
                 right: '2.5%',
                 width: '28%',
                 height: '7.8%',
@@ -93,18 +95,18 @@ export const Hero: React.FC = () => {
           ))}
         </div>
 
-        {/* LEFT ZONE: Positioned strictly in the deliberate white/light negative space */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 xl:px-12 py-14 xl:py-20 flex items-center min-h-[580px] xl:min-h-[640px]">
-          <div className="max-w-xl xl:max-w-2xl space-y-6">
+        {/* Left Negative Space Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 xl:px-12 py-12 xl:py-16 flex items-center min-h-[580px] xl:min-h-[640px]">
+          <div className="max-w-xl xl:max-w-2xl space-y-5">
             
             {/* Eyebrow */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-[#FF8500] text-xs font-bold tracking-wide shadow-sm animate-pulse">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-[#FF8500] text-xs font-bold tracking-wide shadow-xs animate-pulse">
               <span className="w-2 h-2 rounded-full bg-[#FF8500]" />
               <span>Government & Business Services Made Easy</span>
             </div>
 
-            {/* Main Heading */}
-            <h1 className="text-4xl xl:text-5xl font-extrabold tracking-tight leading-[1.15]">
+            {/* Main Headline */}
+            <h1 className="text-4xl xl:text-5xl font-extrabold tracking-tight leading-[1.12]">
               <span className="text-[#104A96] block">Your Documents.</span>
               <span className="text-[#FF8500] block mt-1">Our Priority.</span>
             </h1>
@@ -116,28 +118,28 @@ export const Hero: React.FC = () => {
 
             {/* Four Trust Indicators */}
             <div className="grid grid-cols-2 gap-3 pt-1 max-w-lg">
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-xs border border-slate-100">
                 <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#104A96] flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div className="text-xs font-bold text-slate-800">Secure & Trusted</div>
               </div>
 
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-xs border border-slate-100">
                 <div className="w-8 h-8 rounded-lg bg-orange-50 text-[#FF8500] flex items-center justify-center shrink-0">
                   <Zap className="w-4 h-4" />
                 </div>
                 <div className="text-xs font-bold text-slate-800">Fast Processing</div>
               </div>
 
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-xs border border-slate-100">
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <Headphones className="w-4 h-4" />
                 </div>
                 <div className="text-xs font-bold text-slate-800">Expert Support</div>
               </div>
 
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-xs border border-slate-100">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
@@ -146,7 +148,7 @@ export const Hero: React.FC = () => {
             </div>
 
             {/* Two Action Buttons */}
-            <div className="flex items-center gap-4 pt-3">
+            <div className="flex items-center gap-4 pt-2">
               <button
                 type="button"
                 onClick={scrollToServices}
@@ -160,10 +162,10 @@ export const Hero: React.FC = () => {
                 href="/contact"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm xl:text-base px-6 py-3.5 rounded-xl border border-slate-200 transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-semibold text-sm xl:text-base px-6 py-3.5 rounded-xl border-2 border-[#104A96]/30 hover:border-[#104A96] transition-colors shadow-xs"
               >
+                <Phone className="w-4 h-4 text-[#104A96]" />
                 <span>Contact Us</span>
-                <ArrowRight className="w-4 h-4 text-[#FF8500]" />
               </a>
             </div>
 
@@ -173,112 +175,108 @@ export const Hero: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE & TABLET HERO: Dedicated responsive layout using SAME approved artwork */}
+      {/* 2. MOBILE HERO EXACT IMPLEMENTATION (Matching image copy 16.png)         */}
+      {/* Completely removes the old box from image copy 15.png                      */}
       {/* ========================================================================= */}
-      <div className="lg:hidden px-4 sm:px-6 py-8 sm:py-12 space-y-8">
+      <div className="lg:hidden w-full">
         
-        {/* Content area: Eyebrow, Headlines & Text */}
-        <div className="text-center sm:text-left space-y-4 max-w-xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-[#FF8500] text-xs font-bold">
+        {/* Light-blue upper content area */}
+        <div className="px-4 sm:px-6 pt-5 pb-6 bg-[#F1F7FF]/70 space-y-4 text-center sm:text-left">
+          
+          {/* Eyebrow */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-[#FF8500] text-xs font-bold tracking-wide">
             <span className="w-1.5 h-1.5 rounded-full bg-[#FF8500]" />
             <span>Government & Business Services Made Easy</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
-            <span className="text-[#104A96]">Your Documents. </span>
-            <span className="text-[#FF8500]">Our Priority.</span>
+          {/* Heading */}
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.15]">
+            <span className="text-[#104A96] block sm:inline">Your Documents.</span>{' '}
+            <span className="text-[#FF8500] block sm:inline">Our Priority.</span>
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-normal">
+          {/* Description */}
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto sm:mx-0">
             Apply365 provides fast, reliable and hassle-free assistance for all your government and business service needs.
           </p>
 
-          {/* 4 Trust Indicators Grid on Mobile */}
-          <div className="grid grid-cols-2 gap-2.5 pt-2 text-left">
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-white shadow-xs border border-slate-100">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#104A96]" />
-              <span className="text-xs font-bold text-slate-800">Secure & Trusted</span>
+          {/* 4 Trust Indicators in 2-column grid with clean blue line icons */}
+          <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto sm:mx-0 pt-1 text-left">
+            <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
+              <ShieldCheck className="w-4 h-4 text-[#104A96] shrink-0" />
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">Secure & Trusted</span>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-white shadow-xs border border-slate-100">
-              <Zap className="w-3.5 h-3.5 text-[#FF8500]" />
-              <span className="text-xs font-bold text-slate-800">Fast Processing</span>
+
+            <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
+              <Zap className="w-4 h-4 text-[#104A96] shrink-0" />
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">Fast Processing</span>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-white shadow-xs border border-slate-100">
-              <Headphones className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-xs font-bold text-slate-800">Expert Support</span>
+
+            <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
+              <Headphones className="w-4 h-4 text-[#104A96] shrink-0" />
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">Expert Support</span>
             </div>
-            <div className="flex items-center gap-2 p-2 rounded-lg bg-white shadow-xs border border-slate-100">
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
-              <span className="text-xs font-bold text-slate-800">100% Genuine</span>
+
+            <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
+              <CheckCircle2 className="w-4 h-4 text-[#104A96] shrink-0" />
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">100% Genuine</span>
             </div>
           </div>
 
-          {/* Primary & Secondary Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-3">
+          {/* Two CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-2.5 max-w-sm mx-auto sm:mx-0 pt-2">
+            {/* Explore Our Services button (Orange gradient/solid, white text, right arrow) */}
             <button
               type="button"
               onClick={scrollToServices}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#104A96] hover:bg-[#07366F] text-white font-bold py-3 px-6 rounded-xl shadow-md text-sm"
+              className="w-full inline-flex items-center justify-center gap-2 bg-[#FF8500] hover:bg-[#e67700] text-white font-bold py-3 px-5 rounded-xl shadow-md text-sm active:scale-98 transition-all"
             >
               <span>Explore Our Services</span>
-              <ArrowDown className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" />
             </button>
+
+            {/* Contact Us button (White background, blue border, blue phone icon, blue text) */}
             <a
               href="/contact"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3 px-6 rounded-xl border border-slate-200 text-sm shadow-sm"
+              className="w-full inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-bold py-3 px-5 rounded-xl border-2 border-[#104A96] text-sm shadow-xs transition-colors"
             >
+              <Phone className="w-4 h-4 text-[#104A96]" />
               <span>Contact Us</span>
             </a>
           </div>
+
         </div>
 
-        {/* Approved Reference Artwork Card on Mobile */}
-        <div className="rounded-2xl overflow-hidden shadow-md border border-slate-200 bg-white p-1">
-          <img 
-            src="/hero-approved.png" 
-            alt="Apply365 Approved Hero Banner" 
-            className="w-full h-auto object-cover rounded-xl"
-            loading="eager"
-          />
-        </div>
+        {/* Hero Artwork Area: Displays the approved artwork with the person, laptop, curves, and 7 service pills */}
+        <div className="relative w-full overflow-hidden bg-gradient-to-b from-[#F1F7FF]/70 to-[#FAFBFD] px-2 sm:px-4 pt-2 pb-4">
+          <div className="relative w-full max-w-lg mx-auto rounded-2xl overflow-hidden shadow-sm border border-slate-200/80 bg-white">
+            <img 
+              src="/mobile-hero-artwork.png" 
+              alt="Apply365 Mobile Hero Artwork" 
+              className="w-full h-auto object-cover select-none filter brightness-[1.02]"
+              loading="eager"
+            />
 
-        {/* Clean, accessible 7 Services list below artwork for mobile users */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Select a Service (Tap to View Details):
-            </span>
-            <span className="text-xs font-semibold text-[#FF8500]">All 7 Services</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {sevenServices.map((service, idx) => {
-              const IconComp = service.icon;
-              return (
-                <a
-                  key={idx}
-                  href={`/services/${service.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 rounded-xl border border-slate-200/80 hover:border-[#104A96] bg-slate-50 hover:bg-[#F1F7FF] transition-all group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-9 h-9 rounded-full flex items-center justify-center shadow-xs"
-                      style={{ backgroundColor: service.bg, color: service.color }}
-                    >
-                      <IconComp className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 group-hover:text-[#104A96]">
-                      {service.title}
-                    </span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#FF8500] transition-transform group-hover:translate-x-0.5" />
-                </a>
-              );
-            })}
+            {/* Interactive Clickable Hotspots over the 7 service pills on the right */}
+            {sevenServices.map((service, idx) => (
+              <a
+                key={idx}
+                href={`/services/${service.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  top: `${service.mobileTop}%`,
+                  right: '1.5%',
+                  width: '32%',
+                  height: '9.2%',
+                }}
+                className="absolute rounded-lg transition-transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
+                title={`Open ${service.title} details in new tab`}
+                aria-label={`View ${service.title} details`}
+              />
+            ))}
           </div>
         </div>
 

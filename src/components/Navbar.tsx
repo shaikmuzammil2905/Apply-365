@@ -224,21 +224,38 @@ export const Navbar: React.FC = () => {
             </Link>
           </div>
 
-          {/* Mobile Hamburger Button */}
+          {/* Mobile Actions matching approved reference: Phone, WhatsApp, and Menu */}
           <div className="flex items-center gap-2 lg:hidden">
-            <Link
-              to="/apply"
-              className="bg-[#FF8500] hover:bg-[#e67700] text-white text-xs font-bold px-3.5 py-1.5 rounded-md shadow-sm"
+            {/* Blue circular telephone button */}
+            <a
+              href="tel:+919876543210"
+              className="w-9 h-9 rounded-full bg-[#104A96] hover:bg-[#07366F] text-white flex items-center justify-center shadow-sm transition-transform active:scale-95"
+              title="Call Apply365 Support"
+              aria-label="Call support"
             >
-              Apply Now
-            </Link>
+              <Phone className="w-4 h-4" />
+            </a>
+
+            {/* Green circular WhatsApp button */}
+            <a
+              href="https://wa.me/919876543210?text=Hi%20Apply365,%20I%20need%20assistance%20with%20documentation%20services"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-9 h-9 rounded-full bg-[#35A936] hover:bg-emerald-600 text-white flex items-center justify-center shadow-sm transition-transform active:scale-95"
+              title="Chat on WhatsApp"
+              aria-label="Chat on WhatsApp"
+            >
+              <MessageSquare className="w-4 h-4 fill-white/20" />
+            </a>
+
+            {/* Blue hamburger menu button on the right */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-slate-700 hover:text-[#104A96] hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
+              className="w-9 h-9 rounded-full bg-[#07366F] hover:bg-[#104A96] text-white flex items-center justify-center shadow-sm transition-transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
               aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
 

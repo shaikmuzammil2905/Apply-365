@@ -12,8 +12,82 @@ import {
   CheckCircle,
   FileText,
   PhoneCall,
-  Sparkles
+  Sparkles,
+  Fingerprint,
+  CreditCard,
+  Vote,
+  Building2,
+  FileCheck2,
+  Landmark,
+  HeartHandshake,
+  ChevronRight
 } from 'lucide-react';
+
+const mobileServicesList = [
+  {
+    title: 'Aadhaar Card',
+    subtitle: 'New, Update & Correction',
+    slug: 'aadhaar',
+    icon: Fingerprint,
+    bgColor: 'bg-[#EFF6FF]',
+    borderColor: 'border-blue-100',
+    iconBg: 'bg-blue-100 text-[#104A96]',
+  },
+  {
+    title: 'PAN Card',
+    subtitle: 'New & Correction',
+    slug: 'pan-card',
+    icon: CreditCard,
+    bgColor: 'bg-[#ECFDF5]',
+    borderColor: 'border-emerald-100',
+    iconBg: 'bg-emerald-100 text-emerald-700',
+  },
+  {
+    title: 'Voter ID',
+    subtitle: 'New & Update',
+    slug: 'voter-id',
+    icon: Vote,
+    bgColor: 'bg-[#FFF1F2]',
+    borderColor: 'border-rose-100',
+    iconBg: 'bg-rose-100 text-rose-700',
+  },
+  {
+    title: 'MSME Registration',
+    subtitle: 'Registration & Udyam',
+    slug: 'msme',
+    icon: Building2,
+    bgColor: 'bg-[#FAF5FF]',
+    borderColor: 'border-purple-100',
+    iconBg: 'bg-purple-100 text-purple-700',
+  },
+  {
+    title: 'Labour License',
+    subtitle: 'New & Renewal',
+    slug: 'labour-license',
+    icon: FileCheck2,
+    bgColor: 'bg-[#FFFBEB]',
+    borderColor: 'border-amber-100',
+    iconBg: 'bg-amber-100 text-amber-700',
+  },
+  {
+    title: 'UAN / PF Services',
+    subtitle: 'Registration & Updates',
+    slug: 'uan-pf',
+    icon: Landmark,
+    bgColor: 'bg-[#F0F9FF]',
+    borderColor: 'border-sky-100',
+    iconBg: 'bg-sky-100 text-sky-700',
+  },
+  {
+    title: 'ESI Details Update',
+    subtitle: 'Details Update',
+    slug: 'esi',
+    icon: HeartHandshake,
+    bgColor: 'bg-[#F0FDF4]',
+    borderColor: 'border-teal-100',
+    iconBg: 'bg-teal-100 text-teal-700',
+  },
+];
 
 export const HomePage: React.FC = () => {
   return (
@@ -41,15 +115,62 @@ export const HomePage: React.FC = () => {
             </p>
           </div>
 
-          {/* Seven Interactive Service Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+          {/* Desktop Seven Interactive Service Cards Grid */}
+          <div className="hidden lg:grid grid-cols-3 gap-6 xl:gap-8">
             {servicesData.map((service) => (
               <ServiceCard key={service.id} service={service} />
             ))}
           </div>
 
-          {/* View All Services Button */}
-          <div className="mt-12 text-center">
+          {/* Mobile Seven Horizontal Service Cards List (Matching image copy 16.png) */}
+          <div className="lg:hidden space-y-3">
+            {mobileServicesList.map((item, idx) => {
+              const IconComp = item.icon;
+              return (
+                <a
+                  key={idx}
+                  href={`/services/${item.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center justify-between p-3.5 rounded-2xl border ${item.borderColor} ${item.bgColor} hover:shadow-md transition-all duration-200 group active:scale-[0.99]`}
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-xs shrink-0 ${item.iconBg}`}>
+                      <IconComp className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#104A96] transition-colors leading-tight">
+                        {item.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                        {item.subtitle}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="w-7 h-7 rounded-full bg-white shadow-xs border border-slate-200/60 flex items-center justify-center text-slate-400 group-hover:text-[#104A96] group-hover:border-[#104A96]/30 transition-colors shrink-0">
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </a>
+              );
+            })}
+
+            {/* Mobile View All Services Outlined Button */}
+            <div className="pt-2">
+              <a
+                href="/services"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-bold py-3.5 px-4 rounded-xl border-2 border-[#104A96] text-sm shadow-xs transition-colors"
+              >
+                <span>View All Services</span>
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* Desktop View All Services Button */}
+          <div className="hidden lg:block mt-12 text-center">
             <Link
               to="/services"
               className="inline-flex items-center gap-2 bg-[#F1F7FF] hover:bg-blue-100/80 text-[#104A96] font-bold text-sm sm:text-base px-6 py-3.5 rounded-xl border border-blue-200/60 transition-all duration-200 group"
