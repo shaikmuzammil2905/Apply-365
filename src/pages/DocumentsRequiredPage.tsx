@@ -376,7 +376,7 @@ export const DocumentsRequiredPage: React.FC = () => {
                       </Link>
 
                       <Link
-                        to={`/apply?service=${service.id}`}
+                        to={`/apply/${service.slug || service.id}`}
                         className="text-xs font-bold bg-[#FF8500] hover:bg-[#e67700] text-white px-4 py-2 rounded-lg shadow-sm transition-colors"
                       >
                         Apply for {service.title} &rarr;

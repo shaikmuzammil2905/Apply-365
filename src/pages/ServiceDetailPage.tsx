@@ -120,7 +120,7 @@ export const ServiceDetailPage: React.FC = () => {
             {/* Quick Action Buttons */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
               <Link
-                to={service.id === 'aadhaar' ? '/apply/aadhaar' : `/apply?service=${service.id}`}
+                to={`/apply/${service.slug || service.id}`}
                 className="inline-flex items-center justify-center gap-2 bg-[#FF8500] hover:bg-[#e67700] text-white font-bold px-6 py-3.5 rounded-xl shadow-md transition-all duration-200"
               >
                 <span>Apply for This Service</span>
@@ -333,7 +333,7 @@ export const ServiceDetailPage: React.FC = () => {
 
               <div className="space-y-2.5 pt-2">
                 <Link
-                  to={service.id === 'aadhaar' ? '/apply/aadhaar' : `/apply?service=${service.id}`}
+                  to={`/apply/${service.slug || service.id}`}
                   className="w-full flex items-center justify-center gap-2 bg-[#FF8500] hover:bg-[#e67700] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-colors text-sm"
                 >
                   <span>Start Online Application</span>

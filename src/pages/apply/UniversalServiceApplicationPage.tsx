@@ -52,8 +52,8 @@ export const UniversalServiceApplicationPage: React.FC = () => {
   const config: ServiceAppConfig = serviceAppConfigs[slug] || serviceAppConfigs.aadhaar;
   const ServiceIcon = iconMap[config.id] || Fingerprint;
 
-  // Stepper state: 1 = Details, 2 = Document Upload, 3 = Specific Request, 4 = Status Confirmation
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  // Stepper state: 1 = Details & Documents, 2 = Specific Request, 3 = Status Confirmation
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // Form Data dynamic state initialized from config fields
   const [formData, setFormData] = useState<Record<string, any>>(() => {
@@ -104,9 +104,7 @@ export const UniversalServiceApplicationPage: React.FC = () => {
       customerRemarks: '',
     };
     currentConfig.fields.forEach((f) => {
-      if (initial[f.name] === undefined) {
-        initial[f.name] = f.options ? f.options[0].value : '';
-      }
+      initial[f.name] = f.options ? f.options[0].value : '';
     });
     setFormData(initial);
 
@@ -120,36 +118,12 @@ export const UniversalServiceApplicationPage: React.FC = () => {
       }))
     );
     setStep(1);
-    setSubmittedApp(null);
+    setErrorMsg('');
   }, [slug, currentUser]);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [step]);
-
-  const handleInputChange = (name: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  // Step 1 validation
-  const handleProceedToDocs = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-
-    // Check mandatory fields
-    for (const f of config.fields) {
-      if (f.required && !formData[f.name]?.toString().trim()) {
-        setErrorMsg(`Please fill in the required field: ${f.label}`);
-        return;
-      }
-    }
-
-    if (formData.mobile && formData.mobile.replace(/\D/g, '').length !== 10) {
-      setErrorMsg('Please enter a valid 10-digit mobile number.');
-      return;
-    }
-
-    setStep(2);
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errorMsg) setErrorMsg('');
   };
 
   // Toggle Ready / Not Ready
@@ -189,16 +163,22 @@ export const UniversalServiceApplicationPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  // Proceed to Step 3
-  const handleProceedToRequest = () => {
-    const hasUploaded = documents.some((d) => d.status === 'uploaded');
-    if (!hasUploaded) {
-      const confirmContinue = window.confirm(
-        'You have not uploaded any documents yet. Would you like to proceed and submit documents later or during verification?'
-      );
-      if (!confirmContinue) return;
+  // Validate Step 1 details and proceed to Step 2 (Specific Request)
+  const handleProceedToRequest = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    // Check required fields
+    for (const f of config.fields) {
+      if (f.required && !formData[f.name]) {
+        setErrorMsg(`Please fill in "${f.label}" before proceeding.`);
+        window.scrollTo({ top: 100, behavior: 'smooth' });
+        return;
+      }
     }
-    setStep(3);
+
+    setStep(2);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Save Draft
@@ -258,7 +238,8 @@ export const UniversalServiceApplicationPage: React.FC = () => {
 
       await saveApplication(appRecord);
       setSubmittedApp(appRecord);
-      setStep(4);
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {
       alert('Application submission error. Please try again.');
     } finally {
@@ -274,23 +255,23 @@ export const UniversalServiceApplicationPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen py-8 sm:py-12 px-4 sm:px-6 lg:px-8 bg-[#FAFBFD]">
-      <div className="max-w-4xl mx-auto space-y-6">
-
+    <div className="min-h-screen bg-[#FAFBFD] py-6 sm:py-10">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-6 sm:space-y-8">
+        
         {/* Top Header Card */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div 
-              className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xs shrink-0"
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-xs shrink-0"
               style={{ backgroundColor: `${config.accentColor}15`, color: config.accentColor }}
             >
-              <ServiceIcon className="w-8 h-8" />
+              <ServiceIcon className="w-7 h-7 sm:w-8 sm:h-8" />
             </div>
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#104A96] text-[11px] font-bold uppercase tracking-wide">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-[#104A96] text-[10px] sm:text-[11px] font-bold uppercase tracking-wide">
                 <span>Customer Application Portal</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1">
+              <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900 mt-1">
                 {config.title}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500">
@@ -308,13 +289,13 @@ export const UniversalServiceApplicationPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* Stepper Indicator */}
-        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-100">
-          <div className="grid grid-cols-4 gap-2 text-center">
+        {/* Stepper Indicator (Clean 3-Step Flow: Details & Documents -> Specific Request -> Confirmation) */}
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-xs border border-slate-100">
+          <div className="grid grid-cols-3 gap-2 text-center">
             
             <button
               type="button"
-              onClick={() => step > 1 && step < 4 && setStep(1)}
+              onClick={() => step > 1 && step < 3 && setStep(1)}
               className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
                 step === 1 ? 'bg-blue-50 text-[#104A96] font-bold' : step > 1 ? 'text-emerald-700 font-semibold' : 'text-slate-400'
               }`}
@@ -324,12 +305,12 @@ export const UniversalServiceApplicationPage: React.FC = () => {
               }`}>
                 {step > 1 ? <Check className="w-4 h-4" /> : '1'}
               </span>
-              <span className="text-[11px] sm:text-xs truncate">1. Details</span>
+              <span className="text-[11px] sm:text-xs truncate">1. Details & Uploads</span>
             </button>
 
             <button
               type="button"
-              onClick={() => step > 2 && step < 4 && setStep(2)}
+              onClick={() => step === 3 && setStep(2)}
               className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
                 step === 2 ? 'bg-blue-50 text-[#104A96] font-bold' : step > 2 ? 'text-emerald-700 font-semibold' : 'text-slate-400'
               }`}
@@ -339,33 +320,18 @@ export const UniversalServiceApplicationPage: React.FC = () => {
               }`}>
                 {step > 2 ? <Check className="w-4 h-4" /> : '2'}
               </span>
-              <span className="text-[11px] sm:text-xs truncate">2. Documents</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => step > 3 && step < 4 && setStep(3)}
-              className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
-                step === 3 ? 'bg-blue-50 text-[#104A96] font-bold' : step > 3 ? 'text-emerald-700 font-semibold' : 'text-slate-400'
-              }`}
-            >
-              <span className={`w-7 h-7 rounded-full text-xs flex items-center justify-center font-bold ${
-                step === 3 ? 'bg-[#104A96] text-white' : step > 3 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {step > 3 ? <Check className="w-4 h-4" /> : '3'}
-              </span>
-              <span className="text-[11px] sm:text-xs truncate">3. Request</span>
+              <span className="text-[11px] sm:text-xs truncate">2. Specific Request</span>
             </button>
 
             <div className={`flex flex-col items-center gap-1 p-2 rounded-xl ${
-              step === 4 ? 'bg-emerald-50 text-emerald-800 font-bold' : 'text-slate-400'
+              step === 3 ? 'bg-emerald-50 text-emerald-800 font-bold' : 'text-slate-400'
             }`}>
               <span className={`w-7 h-7 rounded-full text-xs flex items-center justify-center font-bold ${
-                step === 4 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
+                step === 3 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
               }`}>
-                4
+                3
               </span>
-              <span className="text-[11px] sm:text-xs truncate">4. Status</span>
+              <span className="text-[11px] sm:text-xs truncate">3. Status</span>
             </div>
 
           </div>
@@ -380,11 +346,12 @@ export const UniversalServiceApplicationPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 1: SERVICE DETAILS FORM                                              */}
+        {/* STEP 1: SERVICE DETAILS & DIRECT DOCUMENT UPLOADS (FRONT PIC, BACK, ETC)  */}
         {/* ========================================================================= */}
         {step === 1 && (
-          <form onSubmit={handleProceedToDocs} className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-100 space-y-6">
+          <form onSubmit={handleProceedToRequest} className="bg-white rounded-3xl p-5 sm:p-10 shadow-xl border border-slate-100 space-y-8">
             
+            {/* Header info */}
             <div className="border-b border-slate-100 pb-4">
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 flex items-center gap-2">
                 <span>Enter Application Details</span>
@@ -460,12 +427,141 @@ export const UniversalServiceApplicationPage: React.FC = () => {
               })}
             </div>
 
+            {/* DIRECT DOCUMENT UPLOADS SECTION (FRONT PIC, BACK PIC, PROOFS) */}
+            <div className="pt-8 border-t border-slate-200/90 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase mb-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Upload Required Documents</span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
+                    Upload Documents for {config.title}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Upload clear front & back photos or scans. You can also preview or replace anytime.
+                  </p>
+                </div>
+
+                <div className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 self-start sm:self-auto">
+                  {documents.filter((d) => d.status === 'uploaded').length} / {documents.length} Uploaded
+                </div>
+              </div>
+
+              {/* Document Upload Cards */}
+              <div className="space-y-3.5">
+                {documents.map((doc) => {
+                  const isUploaded = doc.status === 'uploaded';
+                  const docCfg = config.documents.find((d) => d.id === doc.id);
+
+                  return (
+                    <div
+                      key={doc.id}
+                      className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                        isUploaded
+                          ? 'bg-emerald-50/40 border-emerald-200'
+                          : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                        
+                        {/* Document Meta */}
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                            isUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{doc.name}</h4>
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {isUploaded ? 'Uploaded' : 'Required'}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-500 mt-1">
+                              {doc.fileName ? (
+                                <strong className="text-slate-800">{doc.fileName} ({doc.fileSize})</strong>
+                              ) : (
+                                docCfg?.description || 'Accepted: JPG, PNG, PDF (Max 10MB)'
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Ready Toggle & Actions */}
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                          {/* Ready Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => toggleDocReady(doc.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 ${
+                              doc.isReady
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${doc.isReady ? 'bg-emerald-600' : 'bg-slate-400'}`} />
+                            <span>{doc.isReady ? 'Ready' : 'Not Ready'}</span>
+                          </button>
+
+                          {/* Preview Button */}
+                          {isUploaded && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDoc(doc)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#F1F7FF] text-[#104A96] hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Preview</span>
+                            </button>
+                          )}
+
+                          {/* Upload / Replace Button */}
+                          <label className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5 ${
+                            isUploaded 
+                              ? 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50' 
+                              : 'bg-[#104A96] hover:bg-[#07366F] text-white shadow-xs'
+                          }`}>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFileUpload(doc.id, file);
+                              }}
+                            />
+                            {isUploaded ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>Replace</span>
+                              </>
+                            ) : (
+                              <>
+                                <UploadCloud className="w-3.5 h-3.5" />
+                                <span>Upload Document</span>
+                              </>
+                            )}
+                          </label>
+                        </div>
+
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Action Bar */}
-            <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
+            <div className="pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={handleSaveDraft}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
               >
                 <Save className="w-4 h-4 text-slate-500" />
                 <span>Save Draft</span>
@@ -473,9 +569,9 @@ export const UniversalServiceApplicationPage: React.FC = () => {
 
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all group"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all group"
               >
-                <span>Submit Details & Continue to Upload</span>
+                <span>Proceed to Specific Request</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </button>
             </div>
@@ -484,173 +580,10 @@ export const UniversalServiceApplicationPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 2: DYNAMIC DOCUMENT UPLOADS (FRONT PIC, BACK PIC, PROOFS)             */}
+        {/* STEP 2: SPECIFIC REQUEST & REMARKS                                        */}
         {/* ========================================================================= */}
         {step === 2 && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-100 space-y-6">
-            
-            <div className="border-b border-slate-100 pb-4">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase mb-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Upload Required Proofs</span>
-              </div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                Upload Documents for {config.title}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                Upload clear front photographs, back scans, or PDF files. You can preview, mark readiness, or replace anytime.
-              </p>
-            </div>
-
-            {/* Document Upload Cards */}
-            <div className="space-y-4">
-              {documents.map((doc) => {
-                const isUploaded = doc.status === 'uploaded';
-                const docCfg = config.documents.find((d) => d.id === doc.id);
-
-                return (
-                  <div
-                    key={doc.id}
-                    className={`p-5 rounded-2xl border transition-all ${
-                      isUploaded
-                        ? 'bg-emerald-50/30 border-emerald-200'
-                        : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      
-                      {/* Document Meta */}
-                      <div className="flex items-start gap-3.5">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
-                          isUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                        }`}>
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-bold text-slate-900">{doc.name}</h4>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                              isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {isUploaded ? 'Uploaded' : 'Pending Upload'}
-                            </span>
-                          </div>
-
-                          <p className="text-xs text-slate-500 mt-1">
-                            {doc.fileName ? (
-                              <strong className="text-slate-800">{doc.fileName} ({doc.fileSize})</strong>
-                            ) : (
-                              docCfg?.description || 'Accepted: JPG, PNG, PDF (Max 10MB)'
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Ready Toggle & Actions */}
-                      <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
-                        
-                        {/* Ready Toggle */}
-                        <button
-                          type="button"
-                          onClick={() => toggleDocReady(doc.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 ${
-                            doc.isReady
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                              : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-                          }`}
-                        >
-                          <span className={`w-2 h-2 rounded-full ${doc.isReady ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-                          <span>{doc.isReady ? 'Ready' : 'Not Ready'}</span>
-                        </button>
-
-                        {/* Preview */}
-                        {isUploaded && (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewDoc(doc)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#F1F7FF] text-[#104A96] hover:bg-blue-100 transition-colors flex items-center gap-1.5"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Preview</span>
-                          </button>
-                        )}
-
-                        {/* Upload / Replace */}
-                        <label className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5 ${
-                          isUploaded 
-                            ? 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50' 
-                            : 'bg-[#104A96] hover:bg-[#07366F] text-white shadow-xs'
-                        }`}>
-                          <input
-                            type="file"
-                            accept="image/*,application/pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleFileUpload(doc.id, file);
-                            }}
-                          />
-                          {isUploaded ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5" />
-                              <span>Replace</span>
-                            </>
-                          ) : (
-                            <>
-                              <UploadCloud className="w-3.5 h-3.5" />
-                              <span>Upload File</span>
-                            </>
-                          )}
-                        </label>
-
-                      </div>
-
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Actions */}
-            <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Back to Details</span>
-              </button>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleSaveDraft}
-                  className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
-                >
-                  <Save className="w-4 h-4 text-slate-500" />
-                  <span>Save Draft</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleProceedToRequest}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all group"
-                >
-                  <span>Continue to Specific Request</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* STEP 3: SPECIFIC REQUEST & REMARKS                                        */}
-        {/* ========================================================================= */}
-        {step === 3 && (
-          <form onSubmit={handleFinalSubmit} className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-100 space-y-6">
+          <form onSubmit={handleFinalSubmit} className="bg-white rounded-3xl p-5 sm:p-10 shadow-xl border border-slate-100 space-y-6">
             
             <div className="border-b border-slate-100 pb-4">
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
@@ -726,19 +659,19 @@ export const UniversalServiceApplicationPage: React.FC = () => {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-slate-600">
                 <div>Applicant: <strong className="text-slate-800">{formData.fullName || currentUser?.name}</strong></div>
                 <div>Service: <strong className="text-slate-800">{config.title}</strong></div>
-                <div>Uploaded Proofs: <strong className="text-emerald-700">{documents.filter(d => d.status === 'uploaded').length} files</strong></div>
+                <div>Uploaded Proofs: <strong className="text-emerald-700">{documents.filter((d) => d.status === 'uploaded').length} files</strong></div>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
+            <div className="pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => setStep(2)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
+                onClick={() => setStep(1)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Back to Documents</span>
+                <span>Back to Details & Uploads</span>
               </button>
 
               <div className="flex items-center gap-3">
@@ -746,7 +679,7 @@ export const UniversalServiceApplicationPage: React.FC = () => {
                   type="button"
                   onClick={handleSaveDraft}
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
+                  className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition-colors"
                 >
                   <Save className="w-4 h-4 text-slate-500" />
                   <span>Save Draft</span>
@@ -755,17 +688,14 @@ export const UniversalServiceApplicationPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all"
                 >
                   {isSubmitting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Submitting...</span>
-                    </>
+                    <span>Submitting Application...</span>
                   ) : (
                     <>
                       <span>Submit Application</span>
-                      <Check className="w-4 h-4" />
+                      <CheckCircle2 className="w-4 h-4" />
                     </>
                   )}
                 </button>
@@ -776,122 +706,96 @@ export const UniversalServiceApplicationPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 4: APPLICATION STATUS CONFIRMATION                                   */}
+        {/* STEP 3: SUBMITTED APPLICATION CONFIRMATION & UNIQUE ID TRACKING            */}
         {/* ========================================================================= */}
-        {step === 4 && submittedApp && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-100 space-y-8 animate-in fade-in duration-300">
+        {step === 3 && submittedApp && (
+          <div className="bg-white rounded-3xl p-6 sm:p-12 shadow-xl border border-slate-100 text-center space-y-6">
             
-            <div className="text-center space-y-3 pb-6 border-b border-slate-100">
-              <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-sm">
-                <CheckCircle2 className="w-9 h-9" />
+            <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner animate-bounce">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Application Submitted Successfully</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {config.title} Submitted!
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                Your Application ID is Generated!
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto">
-                Your application and uploaded documents have been securely logged under your customer account.
+              <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
+                Our documentation team has received your application and documents. You can track status anytime in your dashboard.
               </p>
             </div>
 
-            {/* Application ID Card */}
-            <div className="bg-gradient-to-r from-[#104A96] to-[#07366F] rounded-2xl p-6 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <span className="text-xs uppercase tracking-wider text-blue-200 font-bold">Unique Application ID</span>
-                <div className="text-2xl sm:text-3xl font-mono font-extrabold tracking-wider mt-1 text-[#FF8500]">
+            {/* Unique Application ID Box */}
+            <div className="max-w-md mx-auto p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 flex items-center justify-between">
+              <div className="text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                  Application Tracking Number
+                </span>
+                <span className="text-lg sm:text-xl font-mono font-black text-[#104A96]">
                   {submittedApp.id}
-                </div>
-                <p className="text-xs text-blue-100 mt-1">Submitted on {submittedApp.submissionDate}</p>
+                </span>
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={copyAppId}
-                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors flex items-center gap-1.5"
-                >
-                  <Copy className="w-4 h-4" />
-                  <span>{copiedId ? 'Copied!' : 'Copy ID'}</span>
-                </button>
-
-                <div className="px-4 py-2.5 rounded-xl bg-amber-500 text-slate-900 text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-                  <Clock className="w-4 h-4" />
-                  <span>{submittedApp.status}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Summary Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              <div className="bg-[#FAFBFD] p-5 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#104A96] border-b border-slate-200 pb-2">
-                  Submitted Applicant Information
-                </h4>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Applicant:</span>
-                    <span className="font-bold text-slate-900">{submittedApp.customerName}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Service:</span>
-                    <span className="font-bold text-slate-900">{submittedApp.serviceTitle}</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span className="text-slate-500">Contact Mobile:</span>
-                    <span className="font-bold text-slate-900">{submittedApp.customerMobile}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#FAFBFD] p-5 rounded-2xl border border-slate-200/80 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#104A96] border-b border-slate-200 pb-2">
-                  Uploaded Proofs ({submittedApp.documents.filter(d => d.status === 'uploaded').length})
-                </h4>
-                <div className="space-y-2">
-                  {submittedApp.documents.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-100 text-xs">
-                      <div className="flex items-center gap-2 truncate pr-2">
-                        <FileText className="w-3.5 h-3.5 text-[#104A96] shrink-0" />
-                        <span className="font-medium text-slate-800 truncate">{doc.name}</span>
-                      </div>
-                      {doc.status === 'uploaded' ? (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewDoc(doc)}
-                          className="text-[11px] font-bold text-[#104A96] hover:underline shrink-0"
-                        >
-                          View File
-                        </button>
-                      ) : (
-                        <span className="text-[10px] text-slate-400">Not Uploaded</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Actions */}
-            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <Link
-                to="/dashboard"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all"
-              >
-                <span>Go to Customer Dashboard</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-
               <button
                 type="button"
-                onClick={() => {
-                  setStep(1);
-                  setSubmittedApp(null);
-                }}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors"
+                onClick={copyAppId}
+                className="px-3.5 py-2 rounded-xl bg-white border border-blue-200 text-[#104A96] text-xs font-bold hover:bg-blue-50 transition-colors flex items-center gap-1.5 shadow-xs"
               >
-                Submit Another Application
+                {copiedId ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy</span>
+                  </>
+                )}
               </button>
+            </div>
+
+            {/* Application Overview Grid */}
+            <div className="max-w-md mx-auto grid grid-cols-2 gap-3 text-left">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Service</span>
+                <span className="text-xs font-bold text-slate-800">{submittedApp.serviceTitle}</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Initial Status</span>
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                  Under Verification
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Applicant</span>
+                <span className="text-xs font-bold text-slate-800 truncate block">{submittedApp.customerName}</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Uploaded Files</span>
+                <span className="text-xs font-bold text-emerald-700">
+                  {submittedApp.documents.filter((d) => d.status === 'uploaded').length} / {submittedApp.documents.length} Files
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Link
+                to="/dashboard"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs sm:text-sm font-bold shadow-md transition-all"
+              >
+                Go to Customer Dashboard
+              </Link>
+
+              <Link
+                to={`/applications/${submittedApp.id}`}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors"
+              >
+                View Application Details
+              </Link>
             </div>
 
           </div>
@@ -899,6 +803,7 @@ export const UniversalServiceApplicationPage: React.FC = () => {
 
       </div>
 
+      {/* Reusable Document Preview Modal */}
       <DocumentPreviewModal
         document={previewDoc}
         onClose={() => setPreviewDoc(null)}

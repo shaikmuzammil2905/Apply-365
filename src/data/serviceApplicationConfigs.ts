@@ -549,3 +549,4 @@ export const serviceAppConfigs: Record<string, ServiceAppConfig> = {
     ],
   },
 };
+

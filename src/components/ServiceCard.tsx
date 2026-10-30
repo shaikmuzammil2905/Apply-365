@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { 
   ArrowRight, 
   Fingerprint, 
@@ -121,18 +122,13 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
         </a>
 
-        <a
-          href={service.id === 'aadhaar' ? '/apply/aadhaar' : `/apply?service=${service.id}`}
-          onClick={(e) => {
-            // Internal routes like /apply/aadhaar can navigate directly in current or new tab
-            if (service.id === 'aadhaar') {
-              // let default anchor behavior happen or open
-            }
-          }}
+        <Link
+          to={`/apply/${service.slug || service.id}`}
+          onClick={(e) => e.stopPropagation()}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow transition-all text-center"
         >
           <span>Apply Now</span>
-        </a>
+        </Link>
       </div>
     </div>
   );

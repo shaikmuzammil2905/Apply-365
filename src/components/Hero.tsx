@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { 
   ShieldCheck, 
   Zap, 
@@ -72,11 +73,9 @@ export const Hero: React.FC = () => {
         {/* Desktop Interactive Hotspots for the 7 Service Pills */}
         <div className="absolute inset-y-0 right-0 w-[65%] xl:w-[62%] z-20 pointer-events-auto">
           {sevenServices.map((service, idx) => (
-            <a
+            <Link
               key={idx}
-              href={`/services/${service.slug}`}
-              target="_blank"
-              rel="noopener noreferrer"
+              to={`/apply/${service.slug}`}
               style={{
                 top: `${service.desktopTop}%`,
                 right: '2.5%',
@@ -84,14 +83,14 @@ export const Hero: React.FC = () => {
                 height: '7.8%',
               }}
               className="absolute group rounded-xl transition-all duration-200 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96] flex items-center justify-end pr-2"
-              title={`Open ${service.title} details in new tab`}
-              aria-label={`View ${service.title} details`}
+              title={`Apply directly for ${service.title}`}
+              aria-label={`Apply directly for ${service.title}`}
             >
               <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#07366F] text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-lg mr-2 whitespace-nowrap flex items-center gap-1">
-                <span>View & Apply</span>
+                <span>Apply Directly</span>
                 <ChevronRight className="w-3 h-3 text-[#FF8500]" />
               </div>
-            </a>
+            </Link>
           ))}
         </div>
 
@@ -261,11 +260,9 @@ export const Hero: React.FC = () => {
 
             {/* Interactive Clickable Hotspots over all 7 service pills in the artwork */}
             {sevenServices.map((service, idx) => (
-              <a
+              <Link
                 key={idx}
-                href={`/services/${service.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                to={`/apply/${service.slug}`}
                 style={{
                   top: `${service.mobileTop}%`,
                   right: '3.5%',
@@ -273,8 +270,8 @@ export const Hero: React.FC = () => {
                   height: '8.8%',
                 }}
                 className="absolute rounded-full transition-all duration-150 active:scale-95 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
-                title={`Open ${service.title} details in new tab`}
-                aria-label={`View ${service.title} details`}
+                title={`Apply directly for ${service.title}`}
+                aria-label={`Apply directly for ${service.title}`}
               />
             ))}
 
