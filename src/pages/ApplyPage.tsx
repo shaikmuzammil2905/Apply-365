@@ -18,11 +18,14 @@ export const ApplyPage: React.FC = () => {
     // Friendly aliases
     if (slug === 'pan') slug = 'pan-card';
     if (slug === 'voter') slug = 'voter-id';
-    if (slug === 'pf' || slug === 'uan') slug = 'uan-pf';
+    if (slug === 'pf' || slug === 'uan') slug = 'uan-pf-services';
     if (slug === 'labour') slug = 'labour-license';
+    if (slug === 'msme') slug = 'msme-registration';
+    if (slug === 'esi') slug = 'esi-details-update';
+    if (slug === 'aadhaar') slug = 'aadhaar-card';
 
     // Redirect to direct application route
-    navigate(`/apply/${slug}`, { replace: true });
+    navigate(`/services/${slug}`, { replace: true });
   }, [searchParams, navigate]);
 
   return (

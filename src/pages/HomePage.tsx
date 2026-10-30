@@ -27,7 +27,7 @@ const mobileServicesList = [
   {
     title: 'Aadhaar Card',
     subtitle: 'New, Update & Correction',
-    slug: 'aadhaar',
+    slug: 'aadhaar-card',
     icon: Fingerprint,
     bgColor: 'bg-[#EFF6FF]',
     borderColor: 'border-blue-100',
@@ -54,7 +54,7 @@ const mobileServicesList = [
   {
     title: 'MSME Registration',
     subtitle: 'Registration & Udyam',
-    slug: 'msme',
+    slug: 'msme-registration',
     icon: Building2,
     bgColor: 'bg-[#FAF5FF]',
     borderColor: 'border-purple-100',
@@ -72,7 +72,7 @@ const mobileServicesList = [
   {
     title: 'UAN / PF Services',
     subtitle: 'Registration & Updates',
-    slug: 'uan-pf',
+    slug: 'uan-pf-services',
     icon: Landmark,
     bgColor: 'bg-[#F0F9FF]',
     borderColor: 'border-sky-100',
@@ -81,7 +81,7 @@ const mobileServicesList = [
   {
     title: 'ESI Details Update',
     subtitle: 'Details Update',
-    slug: 'esi',
+    slug: 'esi-details-update',
     icon: HeartHandshake,
     bgColor: 'bg-[#F0FDF4]',
     borderColor: 'border-teal-100',

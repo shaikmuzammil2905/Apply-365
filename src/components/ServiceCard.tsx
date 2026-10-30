@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, 
   Fingerprint, 
@@ -32,11 +32,12 @@ interface ServiceCardProps {
 }
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
+  const navigate = useNavigate();
   const IconComponent = iconMap[service.iconName] || Fingerprint;
+  const targetSlug = service.slug === 'aadhaar' ? 'aadhaar-card' : service.slug;
 
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Open service in new page
-    window.open(`/services/${service.slug}`, '_blank', 'noopener,noreferrer');
+  const handleCardClick = () => {
+    navigate(`/services/${targetSlug}`);
   };
 
   return (
@@ -114,7 +115,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
       {/* Action Buttons Section */}
       <div className="pt-4 border-t border-slate-100 flex items-center gap-2.5">
         <Link
-          to={`/services/${service.slug}`}
+          to={`/services/${service.slug === 'aadhaar' ? 'aadhaar-card' : service.slug}`}
           onClick={(e) => e.stopPropagation()}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#F1F7FF] hover:bg-blue-100/80 text-[#104A96] font-bold text-xs sm:text-sm transition-colors text-center"
         >
@@ -123,7 +124,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
         </Link>
 
         <Link
-          to={`/apply/${service.slug || service.id}`}
+          to={`/services/${service.slug === 'aadhaar' ? 'aadhaar-card' : service.slug}`}
           onClick={(e) => e.stopPropagation()}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow transition-all text-center"
         >

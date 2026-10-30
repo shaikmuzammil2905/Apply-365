@@ -72,26 +72,34 @@ export const Hero: React.FC = () => {
 
         {/* Desktop Interactive Hotspots for the 7 Service Pills */}
         <div className="absolute inset-y-0 right-0 w-[65%] xl:w-[62%] z-20 pointer-events-auto">
-          {sevenServices.map((service, idx) => (
-            <Link
-              key={idx}
-              to={`/apply/${service.slug}`}
-              style={{
-                top: `${service.desktopTop}%`,
-                right: '2.5%',
-                width: '28%',
-                height: '7.8%',
-              }}
-              className="absolute group rounded-xl transition-all duration-200 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96] flex items-center justify-end pr-2"
-              title={`Apply directly for ${service.title}`}
-              aria-label={`Apply directly for ${service.title}`}
-            >
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#07366F] text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-lg mr-2 whitespace-nowrap flex items-center gap-1">
-                <span>Apply Directly</span>
-                <ChevronRight className="w-3 h-3 text-[#FF8500]" />
-              </div>
-            </Link>
-          ))}
+          {sevenServices.map((service, idx) => {
+            const targetSlug = 
+              service.slug === 'aadhaar' ? 'aadhaar-card' :
+              service.slug === 'msme' ? 'msme-registration' :
+              service.slug === 'uan-pf' ? 'uan-pf-services' :
+              service.slug === 'esi' ? 'esi-details-update' :
+              service.slug;
+            return (
+              <Link
+                key={idx}
+                to={`/services/${targetSlug}`}
+                style={{
+                  top: `${service.desktopTop}%`,
+                  right: '2.5%',
+                  width: '28%',
+                  height: '7.8%',
+                }}
+                className="absolute group rounded-xl transition-all duration-200 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96] flex items-center justify-end pr-2"
+                title={`Open ${service.title} Application`}
+                aria-label={`Open ${service.title} Application`}
+              >
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#07366F] text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-lg mr-2 whitespace-nowrap flex items-center gap-1">
+                  <span>Open Service</span>
+                  <ChevronRight className="w-3 h-3 text-[#FF8500]" />
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         {/* Left Negative Space Content */}
@@ -255,21 +263,29 @@ export const Hero: React.FC = () => {
             />
 
             {/* Interactive Clickable Hotspots over all 7 service pills in the artwork */}
-            {sevenServices.map((service, idx) => (
-              <Link
-                key={idx}
-                to={`/apply/${service.slug}`}
-                style={{
-                  top: `${service.mobileTop}%`,
-                  right: '3.5%',
-                  width: '43%',
-                  height: '8.8%',
-                }}
-                className="absolute rounded-full transition-all duration-150 active:scale-95 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
-                title={`Apply directly for ${service.title}`}
-                aria-label={`Apply directly for ${service.title}`}
-              />
-            ))}
+            {sevenServices.map((service, idx) => {
+              const targetSlug = 
+                service.slug === 'aadhaar' ? 'aadhaar-card' :
+                service.slug === 'msme' ? 'msme-registration' :
+                service.slug === 'uan-pf' ? 'uan-pf-services' :
+                service.slug === 'esi' ? 'esi-details-update' :
+                service.slug;
+              return (
+                <Link
+                  key={idx}
+                  to={`/services/${targetSlug}`}
+                  style={{
+                    top: `${service.mobileTop}%`,
+                    right: '3.5%',
+                    width: '43%',
+                    height: '8.8%',
+                  }}
+                  className="absolute rounded-full transition-all duration-150 active:scale-95 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
+                  title={`Open ${service.title} Application`}
+                  aria-label={`Open ${service.title} Application`}
+                />
+              );
+            })}
 
           </div>
         </div>

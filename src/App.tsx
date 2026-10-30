@@ -71,87 +71,20 @@ export const App: React.FC = () => {
                   } 
                 />
 
-                {/* Direct Service Application Routes for all 7 services */}
-                <Route 
-                  path="/apply/aadhaar" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/pan-card" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/voter-id" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/msme" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/labour-license" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/uan-pf" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/esi" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/passport" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/aadhaar-card" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/apply/:serviceSlug" 
-                  element={
-                    <ProtectedRoute>
-                      <UniversalServiceApplicationPage />
-                    </ProtectedRoute>
-                  } 
-                />
+                {/* Direct Service Application Routes for all services */}
+                <Route path="/apply/aadhaar" element={<ServiceDetailPage />} />
+                <Route path="/apply/aadhaar-card" element={<ServiceDetailPage />} />
+                <Route path="/apply/pan-card" element={<ServiceDetailPage />} />
+                <Route path="/apply/voter-id" element={<ServiceDetailPage />} />
+                <Route path="/apply/msme" element={<ServiceDetailPage />} />
+                <Route path="/apply/msme-registration" element={<ServiceDetailPage />} />
+                <Route path="/apply/labour-license" element={<ServiceDetailPage />} />
+                <Route path="/apply/uan-pf" element={<ServiceDetailPage />} />
+                <Route path="/apply/uan-pf-services" element={<ServiceDetailPage />} />
+                <Route path="/apply/esi" element={<ServiceDetailPage />} />
+                <Route path="/apply/esi-details-update" element={<ServiceDetailPage />} />
+                <Route path="/apply/passport" element={<ServiceDetailPage />} />
+                <Route path="/apply/:serviceSlug" element={<ServiceDetailPage />} />
 
                 <Route 
                   path="/applications/:id" 
@@ -168,14 +101,17 @@ export const App: React.FC = () => {
                 
                 {/* Explicit direct service routes */}
                 <Route path="/services/aadhaar" element={<ServiceDetailPage />} />
+                <Route path="/services/aadhaar-card" element={<ServiceDetailPage />} />
                 <Route path="/services/pan-card" element={<ServiceDetailPage />} />
                 <Route path="/services/voter-id" element={<ServiceDetailPage />} />
                 <Route path="/services/msme" element={<ServiceDetailPage />} />
+                <Route path="/services/msme-registration" element={<ServiceDetailPage />} />
                 <Route path="/services/labour-license" element={<ServiceDetailPage />} />
                 <Route path="/services/uan-pf" element={<ServiceDetailPage />} />
+                <Route path="/services/uan-pf-services" element={<ServiceDetailPage />} />
                 <Route path="/services/esi" element={<ServiceDetailPage />} />
+                <Route path="/services/esi-details-update" element={<ServiceDetailPage />} />
                 <Route path="/services/passport" element={<ServiceDetailPage />} />
-                <Route path="/services/aadhaar-card" element={<ServiceDetailPage />} />
 
                 {/* Other Core Pages */}
                 <Route path="/documents-required" element={<DocumentsRequiredPage />} />

@@ -328,12 +328,14 @@ export const getServiceBySlug = (slug: string): ServiceDetail | undefined => {
 
   // Alias mappings
   const normalized = 
-    raw === 'aadhaar-card' ? 'aadhaar' :
-    raw === 'pan' ? 'pan-card' :
-    raw === 'voter' ? 'voter-id' :
-    raw === 'pf' || raw === 'uan' ? 'uan-pf' :
-    raw === 'labour' ? 'labour-license' :
-    raw === 'passport-service' ? 'passport' :
+    raw === 'aadhaar-card' || raw === 'aadhaar' ? 'aadhaar' :
+    raw === 'pan' || raw === 'pan-card' ? 'pan-card' :
+    raw === 'voter' || raw === 'voter-id' ? 'voter-id' :
+    raw === 'msme-registration' || raw === 'msme' ? 'msme' :
+    raw === 'labour-license' || raw === 'labour' ? 'labour-license' :
+    raw === 'uan-pf-services' || raw === 'uan-pf' || raw === 'pf' || raw === 'uan' ? 'uan-pf' :
+    raw === 'esi-details-update' || raw === 'esi' ? 'esi' :
+    raw === 'passport-service' || raw === 'passport' ? 'passport' :
     raw === 'electricity-bill' ? 'aadhaar' :
     raw;
 
