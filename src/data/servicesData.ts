@@ -322,23 +322,27 @@ export const servicesData: ServiceDetail[] = [
   }
 ];
 
-export const getServiceBySlug = (slug: string): ServiceDetail | undefined => {
-  if (!slug) return undefined;
+export const getServiceBySlug = (slug: string): ServiceDetail => {
+  if (!slug) return servicesData[0];
   const raw = slug.toLowerCase().trim();
 
-  // Alias mappings
+  // Comprehensive alias mappings for every service variant
   const normalized = 
-    raw === 'aadhaar-card' || raw === 'aadhaar' ? 'aadhaar' :
-    raw === 'pan' || raw === 'pan-card' ? 'pan-card' :
-    raw === 'voter' || raw === 'voter-id' ? 'voter-id' :
-    raw === 'msme-registration' || raw === 'msme' ? 'msme' :
-    raw === 'labour-license' || raw === 'labour' ? 'labour-license' :
-    raw === 'uan-pf-services' || raw === 'uan-pf' || raw === 'pf' || raw === 'uan' ? 'uan-pf' :
-    raw === 'esi-details-update' || raw === 'esi' ? 'esi' :
-    raw === 'passport-service' || raw === 'passport' ? 'passport' :
+    raw === 'aadhaar-card' || raw === 'aadhaar' || raw.includes('aadhaar') || raw.includes('aadhar') ? 'aadhaar' :
+    raw === 'pan' || raw === 'pan-card' || raw.includes('pan') ? 'pan-card' :
+    raw === 'voter' || raw === 'voter-id' || raw.includes('voter') ? 'voter-id' :
+    raw === 'msme-registration' || raw === 'msme' || raw.includes('msme') || raw.includes('udyam') ? 'msme' :
+    raw === 'labour-license' || raw === 'labour' || raw.includes('labour') || raw.includes('labor') ? 'labour-license' :
+    raw === 'uan-pf-services' || raw === 'uan-pf' || raw === 'pf' || raw === 'uan' || raw.includes('uan') || raw.includes('pf') ? 'uan-pf' :
+    raw === 'esi-details-update' || raw === 'esi' || raw.includes('esi') ? 'esi' :
+    raw === 'passport-service' || raw === 'passport' || raw.includes('passport') ? 'passport' :
     raw === 'electricity-bill' ? 'aadhaar' :
     raw;
 
-  return servicesData.find(service => service.slug === normalized || service.id === normalized);
+  const found = servicesData.find(service => service.slug === normalized || service.id === normalized);
+  if (found) return found;
+
+  const partial = servicesData.find(s => s.slug.includes(normalized) || normalized.includes(s.slug));
+  return partial || servicesData[0];
 };
 
