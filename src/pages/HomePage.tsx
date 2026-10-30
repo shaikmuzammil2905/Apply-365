@@ -127,11 +127,9 @@ export const HomePage: React.FC = () => {
             {mobileServicesList.map((item, idx) => {
               const IconComp = item.icon;
               return (
-                <a
+                <Link
                   key={idx}
-                  href={`/services/${item.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  to={`/services/${item.slug}`}
                   className={`flex items-center justify-between p-3.5 rounded-2xl border ${item.borderColor} ${item.bgColor} hover:shadow-md transition-all duration-200 group active:scale-[0.99]`}
                 >
                   <div className="flex items-center gap-3.5">
@@ -151,21 +149,19 @@ export const HomePage: React.FC = () => {
                   <div className="w-7 h-7 rounded-full bg-white shadow-xs border border-slate-200/60 flex items-center justify-center text-slate-400 group-hover:text-[#104A96] group-hover:border-[#104A96]/30 transition-colors shrink-0">
                     <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                   </div>
-                </a>
+                </Link>
               );
             })}
 
             {/* Mobile View All Services Outlined Button */}
             <div className="pt-2">
-              <a
-                href="/services"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to="/services"
                 className="w-full inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-bold py-3.5 px-4 rounded-xl border-2 border-[#104A96] text-sm shadow-xs transition-colors"
               >
                 <span>View All Services</span>
                 <ArrowRight className="w-4 h-4" />
-              </a>
+              </Link>
             </div>
           </div>
 

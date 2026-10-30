@@ -53,46 +53,52 @@ export const Footer: React.FC = () => {
             </h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="/services/aadhaar" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                <Link to="/services/aadhaar" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
                   <span>Aadhaar Card Update</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/services/pan-card" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                <Link to="/services/pan-card" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
                   <span>New PAN & Correction</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/services/voter-id" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                <Link to="/services/voter-id" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
                   <span>Voter ID Card Enrolment</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/services/msme" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                <Link to="/services/msme" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
                   <span>MSME / Udyam Registration</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/services/labour-license" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                <Link to="/services/labour-license" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
                   <span>Labour License (Shops & Est.)</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/services/uan-pf" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                <Link to="/services/uan-pf" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
                   <span>UAN / PF KYC & Claims</span>
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/services/esi" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                <Link to="/services/esi" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
                   <span>ESI Details & Family Update</span>
-                </a>
+                </Link>
+              </li>
+              <li>
+                <Link to="/services/passport" className="text-slate-300 hover:text-white hover:underline transition-colors flex items-center gap-1.5">
+                  <ArrowRight className="w-3.5 h-3.5 text-[#FF8500]" />
+                  <span>Passport Service Assistance</span>
+                </Link>
               </li>
             </ul>
           </div>

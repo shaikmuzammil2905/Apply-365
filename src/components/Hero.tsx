@@ -157,15 +157,13 @@ export const Hero: React.FC = () => {
                 <ArrowDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
               </button>
 
-              <a
-                href="/contact"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to="/contact"
                 className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-semibold text-sm xl:text-base px-6 py-3.5 rounded-xl border-2 border-[#104A96]/30 hover:border-[#104A96] transition-colors shadow-xs"
               >
                 <Phone className="w-4 h-4 text-[#104A96]" />
                 <span>Contact Us</span>
-              </a>
+              </Link>
             </div>
 
           </div>
@@ -235,15 +233,13 @@ export const Hero: React.FC = () => {
             </button>
 
             {/* Contact Us button (White background, blue border, blue phone icon, blue text) */}
-            <a
-              href="/contact"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/contact"
               className="w-full inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-bold py-3 px-5 rounded-xl border-2 border-[#104A96] text-sm shadow-xs transition-colors"
             >
               <Phone className="w-4 h-4 text-[#104A96]" />
               <span>Contact Us</span>
-            </a>
+            </Link>
           </div>
 
         </div>
