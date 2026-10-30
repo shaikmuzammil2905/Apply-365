@@ -122,10 +122,13 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
         </a>
 
         <a
-          href={`/apply?service=${service.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          href={service.id === 'aadhaar' ? '/apply/aadhaar' : `/apply?service=${service.id}`}
+          onClick={(e) => {
+            // Internal routes like /apply/aadhaar can navigate directly in current or new tab
+            if (service.id === 'aadhaar') {
+              // let default anchor behavior happen or open
+            }
+          }}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-xs sm:text-sm shadow-sm hover:shadow transition-all text-center"
         >
           <span>Apply Now</span>

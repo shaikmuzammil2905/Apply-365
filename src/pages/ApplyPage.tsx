@@ -311,6 +311,24 @@ export const ApplyPage: React.FC = () => {
                     );
                   })}
                 </div>
+
+                {selectedServiceId === 'aadhaar' && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-[#F1F7FF] border border-[#104A96]/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-[#104A96] uppercase tracking-wider block">Direct Aadhaar Portal Ready</span>
+                      <p className="text-xs text-slate-600">
+                        Apply directly with customer details, document upload (front & back), and live status tracking.
+                      </p>
+                    </div>
+                    <Link
+                      to="/apply/aadhaar"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white font-bold text-xs shadow-xs shrink-0"
+                    >
+                      <span>Direct Aadhaar Form</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { 
   ChevronDown, 
   Menu, 
@@ -13,7 +14,10 @@ import {
   Building2,
   FileCheck2,
   Landmark,
-  HeartHandshake
+  HeartHandshake,
+  User,
+  UserCheck,
+  LogOut
 } from 'lucide-react';
 
 interface ServiceNavItem {
@@ -34,6 +38,7 @@ const serviceNavItems: ServiceNavItem[] = [
 ];
 
 export const Navbar: React.FC = () => {
+  const { currentUser, isAuthenticated, logout } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -218,6 +223,36 @@ export const Navbar: React.FC = () => {
               <span>WhatsApp</span>
             </a>
 
+            {/* Customer Login Option */}
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-1.5 bg-[#F1F7FF] hover:bg-blue-100 text-[#104A96] text-xs font-bold px-3.5 py-2.5 rounded-lg border border-blue-200 transition-colors"
+                  title="Open Customer Dashboard"
+                >
+                  <UserCheck className="w-4 h-4 text-[#104A96]" />
+                  <span>My Dashboard</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="p-2 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-50 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-1.5 bg-[#F1F7FF] hover:bg-blue-100 text-[#104A96] text-xs font-bold px-3.5 py-2.5 rounded-lg border border-[#104A96]/30 transition-colors shadow-xs"
+              >
+                <User className="w-4 h-4 text-[#104A96]" />
+                <span>Customer Login</span>
+              </Link>
+            )}
+
             {/* Orange Apply Now Button */}
             <Link
               to="/apply"
@@ -269,6 +304,65 @@ export const Navbar: React.FC = () => {
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-100 bg-white px-4 pt-3 pb-6 shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
+          
+          {/* Customer Auth Card at Top of Mobile Drawer */}
+          <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-[#F1F7FF] to-blue-50/50 border border-blue-100/80">
+            {isAuthenticated ? (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-[#104A96] text-white flex items-center justify-center font-bold text-xs">
+                      {currentUser?.name?.charAt(0).toUpperCase() || 'C'}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">{currentUser?.name}</div>
+                      <div className="text-[11px] text-slate-500">{currentUser?.mobile}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-white text-xs font-semibold flex items-center gap-1"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#104A96] text-white font-bold text-xs shadow-xs"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Go to Customer Dashboard</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-xs text-slate-600 font-medium">Customer Portal Account</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link
+                    to="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#104A96] text-white font-bold text-xs shadow-xs"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Customer Login</span>
+                  </Link>
+
+                  <Link
+                    to="/register"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white border border-[#104A96]/30 text-[#104A96] font-bold text-xs shadow-xs"
+                  >
+                    <span>Register Free</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="space-y-1">
             <Link
               to="/"
