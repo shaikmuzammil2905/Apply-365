@@ -13,6 +13,7 @@ import {
   FileCheck2, 
   Landmark, 
   HeartHandshake,
+  Globe,
   LogOut, 
   FileText, 
   Clock, 
@@ -259,6 +260,7 @@ export const CustomerDashboardPage: React.FC = () => {
                 { title: 'Labour License', slug: 'labour-license', desc: 'Shops & commercial establishment license', icon: FileCheck2, color: 'text-orange-600', bg: 'bg-orange-50' },
                 { title: 'UAN / PF Services', slug: 'uan-pf', desc: 'KYC update, member transfer & claim assistance', icon: Landmark, color: 'text-cyan-600', bg: 'bg-cyan-50' },
                 { title: 'ESI Details Update', slug: 'esi', desc: 'IP medical card & family member additions', icon: HeartHandshake, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { title: 'Passport Service', slug: 'passport', desc: 'Fresh passport issuance, renewal & Tatkaal slots', icon: Globe, color: 'text-blue-700', bg: 'bg-blue-50' },
               ].map((serv, idx) => {
                 const IconComp = serv.icon;
                 return (

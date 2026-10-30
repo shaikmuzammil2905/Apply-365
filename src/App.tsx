@@ -38,30 +38,6 @@ const ScrollToTop: React.FC = () => {
   return null;
 };
 
-// Global Gate: As soon as anyone enters the website, require login credentials first!
-const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
-  const location = useLocation();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAFBFD]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-[#104A96] border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs sm:text-sm text-slate-500 font-semibold">Checking customer authorization...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const publicAuthRoutes = ['/login', '/register', '/forgot-password'];
-  if (!isAuthenticated && !publicAuthRoutes.includes(location.pathname)) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  return <>{children}</>;
-};
-
 export const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -69,8 +45,7 @@ export const App: React.FC = () => {
     <AuthProvider>
       <Router>
         <ScrollToTop />
-        <AuthGate>
-          <div className="flex flex-col min-h-screen bg-[#FAFBFD] text-slate-800 antialiased font-sans selection:bg-[#FF8500] selection:text-white">
+        <div className="flex flex-col min-h-screen bg-[#FAFBFD] text-slate-800 antialiased font-sans selection:bg-[#FF8500] selection:text-white">
             
             {/* Sticky Premium Navbar with Customer Login / Profile */}
             <Navbar />
@@ -154,6 +129,22 @@ export const App: React.FC = () => {
                   } 
                 />
                 <Route 
+                  path="/apply/passport" 
+                  element={
+                    <ProtectedRoute>
+                      <UniversalServiceApplicationPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/apply/aadhaar-card" 
+                  element={
+                    <ProtectedRoute>
+                      <UniversalServiceApplicationPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
                   path="/apply/:serviceSlug" 
                   element={
                     <ProtectedRoute>
@@ -183,6 +174,8 @@ export const App: React.FC = () => {
                 <Route path="/services/labour-license" element={<ServiceDetailPage />} />
                 <Route path="/services/uan-pf" element={<ServiceDetailPage />} />
                 <Route path="/services/esi" element={<ServiceDetailPage />} />
+                <Route path="/services/passport" element={<ServiceDetailPage />} />
+                <Route path="/services/aadhaar-card" element={<ServiceDetailPage />} />
 
                 {/* Other Core Pages */}
                 <Route path="/documents-required" element={<DocumentsRequiredPage />} />
@@ -222,7 +215,6 @@ export const App: React.FC = () => {
             <BackToTop />
 
           </div>
-        </AuthGate>
       </Router>
     </AuthProvider>
   );

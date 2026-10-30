@@ -20,7 +20,8 @@ import {
   Vote,
   FileCheck2,
   Landmark,
-  HeartHandshake
+  HeartHandshake,
+  Globe
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -30,7 +31,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Building2,
   FileCheck2,
   Landmark,
-  HeartHandshake
+  HeartHandshake,
+  Globe
 };
 
 export const ServiceDetailPage: React.FC = () => {

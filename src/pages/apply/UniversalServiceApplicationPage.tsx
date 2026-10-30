@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { saveApplication } from '../../services/dbService';
-import { serviceAppConfigs, ServiceAppConfig } from '../../data/serviceApplicationConfigs';
+import { serviceAppConfigs, ServiceAppConfig, getServiceAppConfig } from '../../data/serviceApplicationConfigs';
 import { 
   CustomerApplication, 
   ApplicationDocument 
@@ -16,6 +16,7 @@ import {
   FileCheck2, 
   Landmark, 
   HeartHandshake,
+  Globe,
   FileText, 
   UploadCloud, 
   CheckCircle2, 
@@ -41,6 +42,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   'labour-license': FileCheck2,
   'uan-pf': Landmark,
   esi: HeartHandshake,
+  passport: Globe,
 };
 
 export const UniversalServiceApplicationPage: React.FC = () => {
@@ -49,7 +51,7 @@ export const UniversalServiceApplicationPage: React.FC = () => {
   const navigate = useNavigate();
 
   const slug = (serviceSlug || 'aadhaar').toLowerCase();
-  const config: ServiceAppConfig = serviceAppConfigs[slug] || serviceAppConfigs.aadhaar;
+  const config: ServiceAppConfig = getServiceAppConfig(slug);
   const ServiceIcon = iconMap[config.id] || Fingerprint;
 
   // Stepper state: 1 = Details & Documents, 2 = Specific Request, 3 = Status Confirmation
@@ -93,7 +95,7 @@ export const UniversalServiceApplicationPage: React.FC = () => {
 
   // Reset / reload when service slug changes
   useEffect(() => {
-    const currentConfig = serviceAppConfigs[slug] || serviceAppConfigs.aadhaar;
+    const currentConfig = getServiceAppConfig(slug);
     const initial: Record<string, any> = {
       fullName: currentUser?.name || '',
       mobile: currentUser?.mobile || '',

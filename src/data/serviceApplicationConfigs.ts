@@ -548,5 +548,133 @@ export const serviceAppConfigs: Record<string, ServiceAppConfig> = {
       },
     ],
   },
+
+  // 8. PASSPORT SERVICE
+  passport: {
+    id: 'passport',
+    slug: 'passport',
+    title: 'Passport Service Application',
+    tagline: 'Fresh passport issuance, renewal, tatkaal booking, and appointment guidance',
+    prefix: 'PAS',
+    accentColor: '#0750A4',
+    fields: [
+      {
+        name: 'passportServiceType',
+        label: 'Passport Service Required',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'fresh-normal', label: 'Fresh Passport (Normal Track: 30-45 Days)' },
+          { value: 'fresh-tatkaal', label: 'Fresh Passport (Tatkaal Track: 3-7 Days)' },
+          { value: 'reissue-expiry', label: 'Passport Re-issue / Renewal (Validity Expired / Expiring)' },
+          { value: 'reissue-pages-exhausted', label: 'Passport Re-issue (Pages Exhausted)' },
+          { value: 'reissue-change-details', label: 'Passport Re-issue (Change of Name / Address)' },
+          { value: 'minor-passport', label: 'Minor Passport Application (Under 18 Years)' },
+        ],
+        gridSpan: 2,
+      },
+      { name: 'fullName', label: 'Full Name (Given Name & Surname as per Aadhaar)', type: 'text', required: true, placeholder: 'e.g. Rahul Sharma' },
+      { name: 'mobile', label: 'Primary Contact Mobile Number', type: 'text', required: true, placeholder: '10-digit mobile number' },
+      { name: 'email', label: 'Active Email Address', type: 'text', required: true, placeholder: 'name@example.com' },
+      { name: 'dob', label: 'Date of Birth (as per Birth Certificate/10th Memo)', type: 'date', required: true },
+      {
+        name: 'gender',
+        label: 'Gender',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'Male', label: 'Male' },
+          { value: 'Female', label: 'Female' },
+          { value: 'Other', label: 'Other' },
+        ],
+      },
+      { name: 'placeOfBirth', label: 'Place of Birth (Village / Town / City & State)', type: 'text', required: true, placeholder: 'e.g. Hyderabad, Telangana' },
+      { name: 'fatherName', label: "Father's Full Name", type: 'text', required: true, placeholder: 'Enter father full name' },
+      { name: 'motherName', label: "Mother's Full Name", type: 'text', required: true, placeholder: 'Enter mother full name' },
+      { name: 'spouseName', label: "Spouse's Full Name (if married)", type: 'text', placeholder: 'Enter spouse name' },
+      {
+        name: 'bookletType',
+        label: 'Passport Booklet Size',
+        type: 'select',
+        required: true,
+        options: [
+          { value: '36-pages', label: '36 Pages (Standard Booklet)' },
+          { value: '60-pages', label: '60 Pages (Jumbo Booklet - Frequent Travellers)' },
+        ],
+      },
+      {
+        name: 'ecnrStatus',
+        label: 'Educational Qualification (ECNR Eligibility)',
+        type: 'select',
+        required: true,
+        options: [
+          { value: '10th-above-ecnr', label: '10th Standard (Matriculation) or Above — Eligible for Non-ECR / ECNR' },
+          { value: 'below-10th-ecr', label: 'Below 10th Standard — ECR Required' },
+          { value: 'graduate-higher', label: 'Graduate & Above — ECNR' },
+        ],
+      },
+      { name: 'existingPassportNo', label: 'Old / Existing Passport Number (if Renewal)', type: 'text', placeholder: 'e.g. Z1234567 (leave blank if Fresh)' },
+      { name: 'doorNo', label: 'House / Flat / Door Number', type: 'text', required: true, placeholder: 'e.g. Flat 402, Royal Enclave' },
+      { name: 'street', label: 'Street / Colony / Landmark', type: 'text', placeholder: 'e.g. 2nd Main Road, Near Bus Stop' },
+      { name: 'city', label: 'City / Town / Village', type: 'text', required: true, placeholder: 'e.g. Hyderabad' },
+      { name: 'district', label: 'District & State', type: 'text', required: true, placeholder: 'e.g. Hyderabad, Telangana' },
+      { name: 'pincode', label: 'PIN Code', type: 'text', required: true, placeholder: '6-digit postal code' },
+    ],
+    documents: [
+      {
+        id: 'doc-passport-aadhaar-front',
+        name: 'Aadhaar Card — Front Side (Identity Proof)',
+        type: 'aadhaar-front',
+        description: 'Clear color photo or scan showing photograph, name, and DOB.',
+        isMandatory: true,
+      },
+      {
+        id: 'doc-passport-aadhaar-back',
+        name: 'Aadhaar Card — Back Side (Address Proof)',
+        type: 'aadhaar-back',
+        description: 'Back side showing present residential address.',
+        isMandatory: true,
+      },
+      {
+        id: 'doc-passport-dob-proof',
+        name: 'Proof of Date of Birth (Birth Certificate / 10th Memo)',
+        type: 'dob-proof',
+        description: 'Official municipal birth certificate, school leaving certificate, or 10th marks memo.',
+        isMandatory: true,
+      },
+      {
+        id: 'doc-passport-photo',
+        name: 'Recent Passport Size Color Photograph',
+        type: 'photo',
+        description: 'Frontal photo on clean white background (4.5cm x 3.5cm).',
+        isMandatory: true,
+      },
+      {
+        id: 'doc-passport-old-booklet',
+        name: 'Old / Existing Passport Copy (First & Last Page)',
+        type: 'old-passport',
+        description: 'For renewals/re-issue only. Upload first page with photo and last page with address.',
+        isMandatory: false,
+      },
+    ],
+  },
+};
+
+// Aliases lookup helper for universal routing
+export const getServiceAppConfig = (slug: string): ServiceAppConfig => {
+  if (!slug) return serviceAppConfigs.aadhaar;
+  const raw = slug.toLowerCase().trim();
+
+  const normalized = 
+    raw === 'aadhaar-card' ? 'aadhaar' :
+    raw === 'pan' ? 'pan-card' :
+    raw === 'voter' ? 'voter-id' :
+    raw === 'pf' || raw === 'uan' ? 'uan-pf' :
+    raw === 'labour' ? 'labour-license' :
+    raw === 'passport-service' ? 'passport' :
+    raw === 'electricity-bill' ? 'aadhaar' :
+    raw;
+
+  return serviceAppConfigs[normalized] || serviceAppConfigs.aadhaar;
 };
 

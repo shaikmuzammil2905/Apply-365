@@ -26,7 +26,8 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   // Target destination after login
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const rawFrom = (location.state as any)?.from;
+  const from = (typeof rawFrom === 'string' ? rawFrom : rawFrom?.pathname) || (location.state as any)?.returnUrl || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

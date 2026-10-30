@@ -275,10 +275,68 @@ export const servicesData: ServiceDetail[] = [
         answer: 'Your employer or the ESIC portal provides an e-Pehchan card containing your insurance number, which can be printed and laminated for hospital visits.'
       }
     ]
+  },
+  {
+    id: 'passport',
+    slug: 'passport',
+    title: 'Passport Service',
+    shortDescription: 'Fresh passport application, renewal, and Tatkaal appointment guidance.',
+    fullDescription: 'Comprehensive assistance for fresh Indian passport issuance, passport re-issue and renewal, address change, minor passport applications, and fast-track Tatkaal appointment scheduling through official Passport Seva Kendra (PSK / POPSK) channels.',
+    accentColor: '#0750A4',
+    badge: 'International Travel',
+    iconName: 'Globe',
+    documents: [
+      { name: 'Aadhaar Card', description: 'Primary identity and address proof (must match name and date of birth records).' },
+      { name: 'Proof of Date of Birth', description: 'Birth Certificate, 10th Standard Passing Certificate, or PAN Card.' },
+      { name: 'Address Proof', description: 'Electricity Bill, Bank Passbook, Rental Agreement, or Voter ID Card.' },
+      { name: 'Passport Size Photograph', description: 'Recent color photographs with white background (4.5cm x 3.5cm) without spectacles or reflections.' },
+      { name: 'Old Passport (if renewal)', description: 'First two and last two pages of the existing or expired passport booklet.', isOptional: true }
+    ],
+    officialDisclaimer: 'Final document verification, biometric data capture, and physical passport issuance are conducted directly at Ministry of External Affairs designated Passport Seva Kendras (PSK / POPSK).',
+    benefits: [
+      'Pre-verification of annexures and supporting documents to avoid PSK appointment rejection',
+      'Assistance selecting between Normal (30–45 days) and Tatkaal (3–7 days) tracks',
+      'Appointment slot booking and reschedule assistance at nearest Passport Seva Kendra',
+      'Real-time tracking of police verification and India Post delivery status'
+    ],
+    processSteps: [
+      { title: 'Document & Annexure Audit', description: 'Checking date of birth, educational qualification (ECNR/ECR status), and address proofs against MEA guidelines.' },
+      { title: 'Passport Seva Online Form Filing', description: 'Accurate filing of applicant details, parent names, and emergency contact records on passportindia.gov.in.' },
+      { title: 'Fee Payment & PSK Slot Booking', description: 'Government fee payment and scheduling your in-person biometric appointment at your preferred PSK/POPSK.' },
+      { title: 'Police Verification & Delivery', description: 'Guidance through local police station verification and speed post dispatch tracking to your home.' }
+    ],
+    faqs: [
+      {
+        question: 'What is the difference between Normal and Tatkaal passport schemes?',
+        answer: 'Normal passport applications take approximately 3 to 4 weeks after PSK verification, while Tatkaal applications are prioritized and dispatched within 3 to 7 working days with additional government tatkaal charges.'
+      },
+      {
+        question: 'What is ECNR (Emigration Check Not Required)?',
+        answer: 'Applicants who have passed 10th standard (Matriculation) or higher qualify for ECNR status, exempting them from emigration clearance when travelling abroad for employment.'
+      },
+      {
+        question: 'Can I apply for a passport renewal before the current one expires?',
+        answer: 'Yes, you can apply for passport re-issue up to 1 year before its expiration date or anytime after it has expired.'
+      }
+    ]
   }
 ];
 
 export const getServiceBySlug = (slug: string): ServiceDetail | undefined => {
-  return servicesData.find(service => service.slug === slug || service.id === slug);
+  if (!slug) return undefined;
+  const raw = slug.toLowerCase().trim();
+
+  // Alias mappings
+  const normalized = 
+    raw === 'aadhaar-card' ? 'aadhaar' :
+    raw === 'pan' ? 'pan-card' :
+    raw === 'voter' ? 'voter-id' :
+    raw === 'pf' || raw === 'uan' ? 'uan-pf' :
+    raw === 'labour' ? 'labour-license' :
+    raw === 'passport-service' ? 'passport' :
+    raw === 'electricity-bill' ? 'aadhaar' :
+    raw;
+
+  return servicesData.find(service => service.slug === normalized || service.id === normalized);
 };
 

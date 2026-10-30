@@ -9,6 +9,7 @@ import {
   FileCheck2, 
   Landmark, 
   HeartHandshake,
+  Globe,
   CheckCircle2,
   FileText,
   ExternalLink
@@ -22,7 +23,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Building2,
   FileCheck2,
   Landmark,
-  HeartHandshake
+  HeartHandshake,
+  Globe
 };
 
 interface ServiceCardProps {
@@ -111,16 +113,14 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
 
       {/* Action Buttons Section */}
       <div className="pt-4 border-t border-slate-100 flex items-center gap-2.5">
-        <a
-          href={`/services/${service.slug}`}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          to={`/services/${service.slug}`}
           onClick={(e) => e.stopPropagation()}
           className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#F1F7FF] hover:bg-blue-100/80 text-[#104A96] font-bold text-xs sm:text-sm transition-colors text-center"
         >
           <span>View Details</span>
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-        </a>
+        </Link>
 
         <Link
           to={`/apply/${service.slug || service.id}`}
