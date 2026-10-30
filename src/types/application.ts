@@ -68,3 +68,4 @@ export interface CustomerApplication {
   documents: ApplicationDocument[];
   updatedAt: string;
 }
+

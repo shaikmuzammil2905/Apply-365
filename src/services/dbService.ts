@@ -34,14 +34,35 @@ function openDB(): Promise<IDBDatabase> {
 // 1. CUSTOMER USERS (AUTH)
 // ==========================================
 
+// Default demo user seeded for instant verification
+const DEFAULT_DEMO_USER: CustomerUser = {
+  id: 'cust_demo_365',
+  name: 'Ramesh Sharma',
+  email: 'customer@apply365.in',
+  mobile: '9876543210',
+  passwordHash: hashPassword('password123'),
+  city: 'Hyderabad',
+  address: 'Flat 302, Sai Residency, MG Road, Hyderabad - 500001',
+  createdAt: '2026-01-01T00:00:00.000Z'
+};
+
 export function getStoredUsers(): CustomerUser[] {
   try {
     const raw = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
+    if (!raw) {
+      // Seed default user
+      const initial = [DEFAULT_DEMO_USER];
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initial));
+      return initial;
+    }
+    const users = JSON.parse(raw);
+    if (!users || users.length === 0) {
+      return [DEFAULT_DEMO_USER];
+    }
+    return users;
   } catch (err) {
     console.error('Error reading stored users:', err);
-    return [];
+    return [DEFAULT_DEMO_USER];
   }
 }
 
@@ -187,3 +208,4 @@ export async function getApplicationById(id: string, customerId: string): Promis
   const fallback = getFallbackApps().find((item) => item.id === id && item.customerId === customerId);
   return fallback || null;
 }
+

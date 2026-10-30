@@ -22,3 +22,4 @@ export interface AuthResponse {
   user?: CustomerUser;
   token?: string;
 }
+

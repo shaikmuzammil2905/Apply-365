@@ -147,6 +147,25 @@ export const LoginPage: React.FC = () => {
               </>
             )}
           </button>
+
+          {/* Quick Demo Login Option */}
+          <button
+            type="button"
+            onClick={async () => {
+              setIdentifier('9876543210');
+              setPassword('password123');
+              setLoading(true);
+              const res = await login('9876543210', 'password123');
+              setLoading(false);
+              if (res.success) {
+                navigate(from, { replace: true });
+              }
+            }}
+            className="w-full py-2.5 px-4 rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100/70 text-[#104A96] font-bold text-xs transition-colors flex items-center justify-center gap-2"
+          >
+            <ShieldCheck className="w-4 h-4 text-[#FF8500]" />
+            <span>1-Click Demo Login (Auto-fill: 9876543210 / password123)</span>
+          </button>
         </form>
 
         {/* Registration CTA */}
@@ -178,3 +197,4 @@ export const LoginPage: React.FC = () => {
     </div>
   );
 };
+

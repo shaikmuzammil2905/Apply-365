@@ -253,12 +253,12 @@ export const CustomerDashboardPage: React.FC = () => {
             {/* Other Available Services Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {[
-                { title: 'PAN Card', desc: 'New PAN enrolment & photo/signature update', link: '/services/pan-card', icon: CreditCard, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                { title: 'Voter ID Card', desc: 'Form 6 new enrolment & EPIC shifting', link: '/services/voter-id', icon: Vote, color: 'text-sky-600', bg: 'bg-sky-50' },
-                { title: 'MSME / Udyam', desc: 'Business MSME registration certificate', link: '/services/msme', icon: Building2, color: 'text-amber-600', bg: 'bg-amber-50' },
-                { title: 'Labour License', desc: 'Shops & commercial establishment license', link: '/services/labour-license', icon: FileCheck2, color: 'text-orange-600', bg: 'bg-orange-50' },
-                { title: 'UAN / PF Services', desc: 'KYC update, member transfer & claim assistance', link: '/services/uan-pf', icon: Landmark, color: 'text-cyan-600', bg: 'bg-cyan-50' },
-                { title: 'ESI Details Update', desc: 'IP medical card & family member additions', link: '/services/esi', icon: HeartHandshake, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { title: 'PAN Card', slug: 'pan-card', desc: 'New PAN enrolment, photo/signature & correction', icon: CreditCard, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                { title: 'Voter ID Card', slug: 'voter-id', desc: 'Form 6 new enrolment & EPIC shifting', icon: Vote, color: 'text-sky-600', bg: 'bg-sky-50' },
+                { title: 'MSME / Udyam', slug: 'msme', desc: 'Business MSME registration certificate', icon: Building2, color: 'text-amber-600', bg: 'bg-amber-50' },
+                { title: 'Labour License', slug: 'labour-license', desc: 'Shops & commercial establishment license', icon: FileCheck2, color: 'text-orange-600', bg: 'bg-orange-50' },
+                { title: 'UAN / PF Services', slug: 'uan-pf', desc: 'KYC update, member transfer & claim assistance', icon: Landmark, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+                { title: 'ESI Details Update', slug: 'esi', desc: 'IP medical card & family member additions', icon: HeartHandshake, color: 'text-emerald-600', bg: 'bg-emerald-50' },
               ].map((serv, idx) => {
                 const IconComp = serv.icon;
                 return (
@@ -268,21 +268,31 @@ export const CustomerDashboardPage: React.FC = () => {
                         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${serv.bg} ${serv.color}`}>
                           <IconComp className="w-5 h-5" />
                         </div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fast-Track</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Direct Portal</span>
                       </div>
                       <h4 className="text-base font-bold text-slate-900 mb-1">{serv.title}</h4>
                       <p className="text-xs text-slate-500 leading-relaxed mb-4">{serv.desc}</p>
                     </div>
 
-                    <a
-                      href={serv.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-between w-full py-2.5 px-3.5 rounded-xl bg-slate-50 hover:bg-[#F1F7FF] text-[#104A96] font-bold text-xs transition-colors border border-slate-100"
-                    >
-                      <span>View Guidelines</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                      <Link
+                        to={`/apply/${serv.slug}`}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white font-bold text-xs shadow-xs transition-colors"
+                      >
+                        <span>Apply Directly</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+
+                      <a
+                        href={`/services/${serv.slug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+                        title="View Official Guidelines"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
                   </div>
                 );
               })}
@@ -594,3 +604,4 @@ export const CustomerDashboardPage: React.FC = () => {
     </div>
   );
 };
+
