@@ -500,3 +500,4 @@ export const AdminCoursesPage: React.FC = () => {
     </div>
   );
 };
+

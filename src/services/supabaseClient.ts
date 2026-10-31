@@ -37,3 +37,4 @@ export async function testSupabaseConnection(): Promise<{ connected: boolean; me
     return { connected: false, message: err?.message || 'Failed to reach Supabase endpoint.' };
   }
 }
+

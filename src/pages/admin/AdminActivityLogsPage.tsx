@@ -95,3 +95,4 @@ export const AdminActivityLogsPage: React.FC = () => {
     </div>
   );
 };
+

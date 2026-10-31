@@ -474,3 +474,4 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
     </div>
   );
 };
+

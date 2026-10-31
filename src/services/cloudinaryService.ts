@@ -105,3 +105,4 @@ function fileToBase64(file: File | Blob): Promise<string> {
     reader.onerror = (error) => reject(error);
   });
 }
+
