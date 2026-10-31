@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
-import { ShieldCheck, Lock, Mail, Eye, EyeOff, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
 
 export const AdminLoginPage: React.FC = () => {
   const { loginAdmin, isAdminAuthenticated } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [email, setEmail] = useState('admin@apply365.in');
-  const [password, setPassword] = useState('Apply365@Admin2026');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -132,26 +132,13 @@ export const AdminLoginPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <span>Authenticate as Super Admin</span>
+                  <span>Sign In to Super Admin</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
 
           </form>
-
-          {/* Provisioning Notice & Default Verification info */}
-          <div className="pt-4 border-t border-slate-800/80">
-            <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-              <div className="flex items-center gap-1.5 text-amber-400 font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Super Admin Provisioned</span>
-              </div>
-              <p className="text-slate-500 leading-relaxed">
-                Initial Super Admin credentials: <span className="text-slate-300 font-mono">admin@apply365.in</span>. You can change this password at any time in Admin Settings.
-              </p>
-            </div>
-          </div>
 
         </div>
 
