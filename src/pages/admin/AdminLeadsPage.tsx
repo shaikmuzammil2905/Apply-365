@@ -210,153 +210,160 @@ export const AdminLeadsPage: React.FC = () => {
 
       {/* Lead Detail Drawer / Modal */}
       {selectedLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-8 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs overflow-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92dvh] overflow-hidden my-auto">
             
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            {/* Modal Header */}
+            <div className="shrink-0 p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-white z-10">
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400">
                   {selectedLead.id}
                 </span>
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                   {selectedLead.customerName}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedLead(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Quick Contact & Details Grid */}
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
-              <div>
-                <span className="text-slate-400 block font-medium">Mobile Number:</span>
-                <a href={`tel:${selectedLead.mobile}`} className="font-bold text-[#104A96] hover:underline flex items-center gap-1 mt-0.5">
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>{selectedLead.mobile}</span>
-                </a>
+            {/* Scrollable Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 overscroll-contain">
+              
+              {/* Quick Contact & Details Grid */}
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
+                <div>
+                  <span className="text-slate-400 block font-medium">Mobile Number:</span>
+                  <a href={`tel:${selectedLead.mobile}`} className="font-bold text-[#104A96] hover:underline flex items-center gap-1 mt-0.5">
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>{selectedLead.mobile}</span>
+                  </a>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Email Address:</span>
+                  <span className="font-bold text-slate-800 mt-0.5 block">
+                    {selectedLead.email || 'Not provided'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Subject / Service:</span>
+                  <span className="font-bold text-slate-800 mt-0.5 block">
+                    {selectedLead.targetTitle || 'General Enquiry'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Submitted At:</span>
+                  <span className="font-mono text-slate-600 mt-0.5 block">
+                    {new Date(selectedLead.createdAt).toLocaleString()}
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-400 block font-medium">Email Address:</span>
-                <span className="font-bold text-slate-800 mt-0.5 block">
-                  {selectedLead.email || 'Not provided'}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-medium">Subject / Service:</span>
-                <span className="font-bold text-slate-800 mt-0.5 block">
-                  {selectedLead.targetTitle || 'General Enquiry'}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-medium">Submitted At:</span>
-                <span className="font-mono text-slate-600 mt-0.5 block">
-                  {new Date(selectedLead.createdAt).toLocaleString()}
-                </span>
-              </div>
-            </div>
 
-            {/* Customer Message */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-                <span>Customer Message / Notes:</span>
-              </label>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed min-h-[60px] whitespace-pre-wrap">
-                {selectedLead.message || 'No additional message provided.'}
-              </div>
-            </div>
-
-            {/* Uploaded Attachments / Documents / Images (PHASE 8 & 9) */}
-            {selectedLead.attachments && selectedLead.attachments.length > 0 && (
-              <div className="space-y-2">
+              {/* Customer Message */}
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Paperclip className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Submitted Files & Supporting Documents ({selectedLead.attachments.length}):</span>
+                  <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Customer Message / Notes:</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {selectedLead.attachments.map((att, idx) => (
-                    <div 
-                      key={idx}
-                      className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3 shadow-xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {att.url.match(/\.(jpeg|jpg|gif|png|webp)/i) || att.type.includes('image') ? (
-                          <ImageIcon className="w-5 h-5 text-blue-500 shrink-0" />
-                        ) : (
-                          <FileText className="w-5 h-5 text-amber-500 shrink-0" />
-                        )}
-                        <span className="text-xs font-bold text-slate-800 truncate">
-                          {att.name || `Attachment ${idx + 1}`}
-                        </span>
-                      </div>
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed min-h-[60px] whitespace-pre-wrap">
+                  {selectedLead.message || 'No additional message provided.'}
+                </div>
+              </div>
 
-                      <a
-                        href={att.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 rounded-md bg-[#104A96] text-white text-[11px] font-bold hover:bg-[#07366F] shrink-0"
+              {/* Uploaded Attachments / Documents / Images (PHASE 8 & 9) */}
+              {selectedLead.attachments && selectedLead.attachments.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Submitted Files & Supporting Documents ({selectedLead.attachments.length}):</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {selectedLead.attachments.map((att, idx) => (
+                      <div 
+                        key={idx}
+                        className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-3 shadow-xs"
                       >
-                        View
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                        <div className="flex items-center gap-2 min-w-0">
+                          {att.url.match(/\.(jpeg|jpg|gif|png|webp)/i) || att.type.includes('image') ? (
+                            <ImageIcon className="w-5 h-5 text-blue-500 shrink-0" />
+                          ) : (
+                            <FileText className="w-5 h-5 text-amber-500 shrink-0" />
+                          )}
+                          <span className="text-xs font-bold text-slate-800 truncate">
+                            {att.name || `Attachment ${idx + 1}`}
+                          </span>
+                        </div>
 
-            {/* Status Selector & Internal Notes */}
-            <div className="space-y-3 pt-4 border-t border-slate-100">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-700">Update Lead Status:</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {(['new', 'contacted', 'in_progress', 'converted', 'closed', 'rejected'] as LeadStatus[]).map((st) => (
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-md bg-[#104A96] text-white text-[11px] font-bold hover:bg-[#07366F] shrink-0"
+                        >
+                          View
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Status Selector & Internal Notes */}
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-700">Update Lead Status:</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(['new', 'contacted', 'in_progress', 'converted', 'closed', 'rejected'] as LeadStatus[]).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => handleStatusChange(st)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-colors ${
+                          selectedLead.status === st 
+                            ? 'bg-[#104A96] text-white' 
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {st.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Internal Admin Follow-up Notes:</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={adminNotes}
+                      onChange={(e) => setAdminNotes(e.target.value)}
+                      placeholder="e.g. Called customer, requested Aadhaar copy on WhatsApp..."
+                      className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                    />
                     <button
-                      key={st}
                       type="button"
-                      onClick={() => handleStatusChange(st)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-colors ${
-                        selectedLead.status === st 
-                          ? 'bg-[#104A96] text-white' 
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                      onClick={handleSaveNotes}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl"
                     >
-                      {st.replace('_', ' ')}
+                      Save Notes
                     </button>
-                  ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Internal Admin Follow-up Notes:</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    placeholder="e.g. Called customer, requested Aadhaar copy on WhatsApp..."
-                    className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveNotes}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl"
-                  >
-                    Save Notes
-                  </button>
-                </div>
-              </div>
             </div>
 
-            <div className="pt-2 text-right">
+            {/* Modal Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 flex items-center justify-end bg-slate-50">
               <button
                 type="button"
                 onClick={() => setSelectedLead(null)}
-                className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200"
+                className="px-5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors"
               >
                 Close
               </button>

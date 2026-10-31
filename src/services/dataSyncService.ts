@@ -197,6 +197,57 @@ function notifyDataChange(type: string, payload?: any): void {
   }
 }
 
+// Global Supabase Realtime Listener: Synchronize changes across all clients automatically
+if (typeof window !== 'undefined') {
+  try {
+    supabase
+      .channel('apply365_realtime_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, async () => {
+        try {
+          const { data } = await supabase.from('courses').select('*').order('display_order', { ascending: true });
+          if (data && data.length > 0) {
+            const mapped: Course[] = data.map((item: any) => ({
+              id: item.id,
+              slug: item.slug,
+              title: item.title,
+              category: item.category,
+              shortDescription: item.short_description || item.shortDescription,
+              fullDescription: item.full_description || item.fullDescription,
+              imageUrl: item.image_url || item.imageUrl,
+              thumbnailUrl: item.thumbnail_url || item.thumbnailUrl,
+              duration: item.duration,
+              price: item.price,
+              features: Array.isArray(item.features) ? item.features : [],
+              eligibility: item.eligibility,
+              isPublished: item.is_published ?? item.isPublished ?? true,
+              displayOrder: item.display_order || item.displayOrder || 0,
+              createdAt: item.created_at || item.createdAt,
+              updatedAt: item.updated_at || item.updatedAt
+            }));
+            setStored(COURSES_KEY, mapped);
+            notifyDataChange('courses', mapped);
+          }
+        } catch (e) {
+          console.warn('Realtime sync courses fetch failed:', e);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'services' }, async () => {
+        try {
+          const { data } = await supabase.from('services').select('*').order('display_order', { ascending: true });
+          if (data && data.length > 0) {
+            setStored(SERVICES_KEY, data);
+            notifyDataChange('services', data);
+          }
+        } catch (e) {
+          console.warn('Realtime sync services fetch failed:', e);
+        }
+      })
+      .subscribe();
+  } catch (err) {
+    console.warn('Supabase realtime subscription failed:', err);
+  }
+}
+
 // ==========================================
 // 3. COURSES API (SUPABASE + SYNC)
 // ==========================================

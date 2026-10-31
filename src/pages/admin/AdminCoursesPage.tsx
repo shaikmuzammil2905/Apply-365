@@ -25,6 +25,8 @@ export const AdminCoursesPage: React.FC = () => {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [validationError, setValidationError] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Course>>({
@@ -71,6 +73,7 @@ export const AdminCoursesPage: React.FC = () => {
     });
     setFeaturesText('Practical Portal Training\nOfficial Certificate\nStep-by-Step SOPs');
     setUploadStatus('');
+    setValidationError('');
     setIsModalOpen(true);
   };
 
@@ -79,6 +82,7 @@ export const AdminCoursesPage: React.FC = () => {
     setFormData(c);
     setFeaturesText(c.features.join('\n'));
     setUploadStatus('');
+    setValidationError('');
     setIsModalOpen(true);
   };
 
@@ -105,33 +109,45 @@ export const AdminCoursesPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title) return;
+    if (!formData.title || !formData.title.trim()) {
+      setValidationError('Please enter a course title before saving.');
+      return;
+    }
 
-    const slug = formData.slug || formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const features = featuresText.split('\n').map(f => f.trim()).filter(Boolean);
+    setIsSubmitting(true);
+    setValidationError('');
 
-    const payload: Course = {
-      id: editingCourse ? editingCourse.id : `course-${Date.now()}`,
-      slug,
-      title: formData.title!,
-      category: formData.category || 'Professional',
-      shortDescription: formData.shortDescription || '',
-      fullDescription: formData.fullDescription || formData.shortDescription || '',
-      imageUrl: formData.imageUrl || 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=800&q=80',
-      thumbnailUrl: formData.imageUrl,
-      duration: formData.duration || 'Flexible',
-      price: formData.price || 'Contact for Fee',
-      features,
-      eligibility: formData.eligibility || 'Open to all',
-      isPublished: formData.isPublished ?? true,
-      displayOrder: Number(formData.displayOrder) || 1,
-      createdAt: editingCourse?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const slug = formData.slug || formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const features = featuresText.split('\n').map(f => f.trim()).filter(Boolean);
 
-    await saveCourse(payload);
-    await loadCourses();
-    setIsModalOpen(false);
+      const payload: Course = {
+        id: editingCourse ? editingCourse.id : `course-${Date.now()}`,
+        slug,
+        title: formData.title.trim(),
+        category: formData.category || 'Government Services',
+        shortDescription: formData.shortDescription || '',
+        fullDescription: formData.fullDescription || formData.shortDescription || '',
+        imageUrl: formData.imageUrl || 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=800&q=80',
+        thumbnailUrl: formData.imageUrl,
+        duration: formData.duration || 'Flexible',
+        price: formData.price || 'Contact for Fee',
+        features,
+        eligibility: formData.eligibility || 'Open to all',
+        isPublished: formData.isPublished ?? true,
+        displayOrder: Number(formData.displayOrder) || 1,
+        createdAt: editingCourse?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveCourse(payload);
+      await loadCourses();
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setValidationError('Save error: ' + (err.message || 'Failed to save course to Supabase'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async (id: string, title: string) => {
@@ -303,12 +319,13 @@ export const AdminCoursesPage: React.FC = () => {
 
       {/* Course Add / Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-8 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs overflow-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92dvh] overflow-hidden my-auto">
             
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            {/* Modal Header - Fixed at Top */}
+            <div className="shrink-0 p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-white z-10">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                   {editingCourse ? 'Edit Course' : 'Create New Vocational Course'}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -318,176 +335,193 @@ export const AdminCoursesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Course Title *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                    placeholder="e.g. Digital Seva Kendra Operator"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Category *</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                  >
-                    <option value="Government Services">Government Services</option>
-                    <option value="Taxation & Accounting">Taxation & Accounting</option>
-                    <option value="Human Resources & Labour Law">Human Resources & Labour Law</option>
-                    <option value="Business Advisory">Business Advisory</option>
-                    <option value="Skill Development">Skill Development</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Duration</label>
-                  <input
-                    type="text"
-                    value={formData.duration}
-                    onChange={(e) => setFormData(prev => ({ ...prev, duration: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                    placeholder="e.g. 6 Weeks"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Course Price / Fee</label>
-                  <input
-                    type="text"
-                    value={formData.price}
-                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                    placeholder="e.g. ₹4,999"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Display Order</label>
-                  <input
-                    type="number"
-                    value={formData.displayOrder}
-                    onChange={(e) => setFormData(prev => ({ ...prev, displayOrder: Number(e.target.value) }))}
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Cloudinary Image Upload */}
-              <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                  <span>Course Image (Cloudinary Integration)</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Preset: ml_default</span>
-                </label>
+            {/* Modal Form with Scrollable Body */}
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
                 
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageFileChange}
-                    className="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#104A96] file:text-white hover:file:bg-[#07366F] cursor-pointer"
-                  />
-                  {isUploading && (
-                    <span className="text-xs text-amber-600 font-semibold animate-pulse">
-                      Uploading to Cloudinary...
-                    </span>
-                  )}
-                </div>
-
-                {uploadStatus && (
-                  <p className="text-[11px] text-emerald-700 font-medium">
-                    {uploadStatus}
-                  </p>
+                {validationError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-700 font-medium">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>{validationError}</span>
+                  </div>
                 )}
 
-                <div className="pt-1">
-                  <label className="text-[11px] text-slate-500">Or Image URL:</label>
-                  <input
-                    type="text"
-                    value={formData.imageUrl}
-                    onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
-                    className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none"
-                    placeholder="https://..."
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Course Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.title || ''}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, title: e.target.value }));
+                        if (validationError) setValidationError('');
+                      }}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                      placeholder="e.g. Digital Seva Kendra Operator"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Category *</label>
+                    <select
+                      value={formData.category || 'Government Services'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none bg-white"
+                    >
+                      <option value="Government Services">Government Services</option>
+                      <option value="Taxation & Accounting">Taxation & Accounting</option>
+                      <option value="Human Resources & Labour Law">Human Resources & Labour Law</option>
+                      <option value="Business Advisory">Business Advisory</option>
+                      <option value="Skill Development">Skill Development</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Duration</label>
+                    <input
+                      type="text"
+                      value={formData.duration || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, duration: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                      placeholder="e.g. 6 Weeks"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Course Price / Fee</label>
+                    <input
+                      type="text"
+                      value={formData.price || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                      placeholder="e.g. ₹4,999"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Display Order</label>
+                    <input
+                      type="number"
+                      value={formData.displayOrder ?? 1}
+                      onChange={(e) => setFormData(prev => ({ ...prev, displayOrder: Number(e.target.value) }))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Cloudinary Image Upload */}
+                <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span>Course Image (Cloudinary Integration)</span>
+                    <span className="text-[10px] text-slate-500 font-normal">Preset: ml_default</span>
+                  </label>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      className="text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#104A96] file:text-white hover:file:bg-[#07366F] cursor-pointer"
+                    />
+                    {isUploading && (
+                      <span className="text-xs text-amber-600 font-semibold animate-pulse">
+                        Uploading to Cloudinary...
+                      </span>
+                    )}
+                  </div>
+
+                  {uploadStatus && (
+                    <p className="text-[11px] text-emerald-700 font-medium">
+                      {uploadStatus}
+                    </p>
+                  )}
+
+                  <div className="pt-1">
+                    <label className="text-[11px] text-slate-500">Or Direct Image URL:</label>
+                    <input
+                      type="text"
+                      value={formData.imageUrl || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Short Summary</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={formData.shortDescription || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, shortDescription: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                    placeholder="A concise 1-2 sentence overview for course cards..."
                   />
                 </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Full Syllabus / Description</label>
+                  <textarea
+                    rows={3}
+                    value={formData.fullDescription || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, fullDescription: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                    placeholder="Detailed breakdown of modules, portal practicals and guidance..."
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Course Highlights (One per line)</label>
+                  <textarea
+                    rows={3}
+                    value={featuresText}
+                    onChange={(e) => setFeaturesText(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                    placeholder="Live Portal Filing&#10;Certificate of Completion&#10;Doubt Assistance"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="publishToggle"
+                    checked={formData.isPublished ?? true}
+                    onChange={(e) => setFormData(prev => ({ ...prev, isPublished: e.target.checked }))}
+                    className="w-4 h-4 text-[#104A96] rounded border-slate-300 cursor-pointer"
+                  />
+                  <label htmlFor="publishToggle" className="text-xs font-bold text-slate-800 cursor-pointer">
+                    Publish to Main Website immediately
+                  </label>
+                </div>
+
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Short Summary</label>
-                <textarea
-                  rows={2}
-                  required
-                  value={formData.shortDescription}
-                  onChange={(e) => setFormData(prev => ({ ...prev, shortDescription: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                  placeholder="A concise 1-2 sentence overview for course cards..."
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Full Syllabus / Description</label>
-                <textarea
-                  rows={3}
-                  value={formData.fullDescription}
-                  onChange={(e) => setFormData(prev => ({ ...prev, fullDescription: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                  placeholder="Detailed breakdown of modules, portal practicals and guidance..."
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Course Highlights (One per line)</label>
-                <textarea
-                  rows={3}
-                  value={featuresText}
-                  onChange={(e) => setFeaturesText(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                  placeholder="Live Portal Filing&#10;Certificate of Completion&#10;Doubt Assistance"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="publishToggle"
-                  checked={formData.isPublished}
-                  onChange={(e) => setFormData(prev => ({ ...prev, isPublished: e.target.checked }))}
-                  className="w-4 h-4 text-[#104A96] rounded border-slate-300"
-                />
-                <label htmlFor="publishToggle" className="text-xs font-bold text-slate-800">
-                  Publish to Main Website immediately
-                </label>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+              {/* Modal Footer - Fixed at Bottom */}
+              <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold shadow-md transition-all active:scale-95"
+                  disabled={isSubmitting}
+                  className="px-6 py-2 rounded-xl bg-[#104A96] hover:bg-[#07366F] disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all active:scale-95"
                 >
-                  {editingCourse ? 'Save & Synchronize' : 'Create Course'}
+                  {isSubmitting ? 'Saving...' : editingCourse ? 'Save & Synchronize' : 'Create Course'}
                 </button>
               </div>
 

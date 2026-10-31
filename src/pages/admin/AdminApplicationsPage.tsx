@@ -168,119 +168,126 @@ export const AdminApplicationsPage: React.FC = () => {
 
       {/* Application Inspector Modal */}
       {selectedApp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-8 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs overflow-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92dvh] overflow-hidden my-auto">
             
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            {/* Modal Header */}
+            <div className="shrink-0 p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-white z-10">
               <div>
                 <span className="text-[10px] font-mono font-bold text-slate-400">
                   {selectedApp.id}
                 </span>
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                   {selectedApp.serviceTitle} Application
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedApp(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Applicant Details */}
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
-              <div>
-                <span className="text-slate-400 block font-medium">Applicant Name:</span>
-                <span className="font-bold text-slate-900 mt-0.5 block">{selectedApp.customerName}</span>
+            {/* Scrollable Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 overscroll-contain">
+              
+              {/* Applicant Details */}
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
+                <div>
+                  <span className="text-slate-400 block font-medium">Applicant Name:</span>
+                  <span className="font-bold text-slate-900 mt-0.5 block">{selectedApp.customerName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Contact Phone:</span>
+                  <span className="font-bold text-slate-900 mt-0.5 block">{selectedApp.customerMobile}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Email:</span>
+                  <span className="font-bold text-slate-900 mt-0.5 block">{selectedApp.customerEmail || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Request Type:</span>
+                  <span className="font-bold text-[#104A96] mt-0.5 block">{selectedApp.serviceType || 'Standard'}</span>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-400 block font-medium">Contact Phone:</span>
-                <span className="font-bold text-slate-900 mt-0.5 block">{selectedApp.customerMobile}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-medium">Email:</span>
-                <span className="font-bold text-slate-900 mt-0.5 block">{selectedApp.customerEmail || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-medium">Request Type:</span>
-                <span className="font-bold text-[#104A96] mt-0.5 block">{selectedApp.serviceType || 'Standard'}</span>
-              </div>
-            </div>
 
-            {/* Dynamic Form Data Submitted */}
-            {selectedApp.formData && Object.keys(selectedApp.formData).length > 0 && (
+              {/* Dynamic Form Data Submitted */}
+              {selectedApp.formData && Object.keys(selectedApp.formData).length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-700">Submitted Form Fields:</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {Object.entries(selectedApp.formData).map(([k, v]) => (
+                      <div key={k} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">{k}</span>
+                        <span className="font-semibold text-slate-800 break-words">{String(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Uploaded Documents */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-700">Submitted Form Fields:</h4>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {Object.entries(selectedApp.formData).map(([k, v]) => (
-                    <div key={k} className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">{k}</span>
-                      <span className="font-semibold text-slate-800 break-words">{String(v)}</span>
+                <h4 className="text-xs font-bold text-slate-700">
+                  Uploaded Identity Proofs & Supporting Documents ({selectedApp.documents.length}):
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {selectedApp.documents.map((doc, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800 truncate">{doc.name}</p>
+                        <span className={`text-[10px] font-semibold ${doc.fileUrl ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {doc.fileUrl ? 'Uploaded & Verified' : 'Pending Upload'}
+                        </span>
+                      </div>
+                      {doc.fileUrl ? (
+                        <a
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-md bg-[#104A96] text-white text-[11px] font-bold hover:bg-[#07366F] shrink-0"
+                        >
+                          Inspect
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">No File</span>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
-            )}
 
-            {/* Uploaded Documents */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold text-slate-700">
-                Uploaded Identity Proofs & Supporting Documents ({selectedApp.documents.length}):
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {selectedApp.documents.map((doc, idx) => (
-                  <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-2 shadow-2xs">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 truncate">{doc.name}</p>
-                      <span className={`text-[10px] font-semibold ${doc.fileUrl ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        {doc.fileUrl ? 'Uploaded & Verified' : 'Pending Upload'}
-                      </span>
-                    </div>
-                    {doc.fileUrl ? (
-                      <a
-                        href={doc.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 rounded-md bg-[#104A96] text-white text-[11px] font-bold hover:bg-[#07366F] shrink-0"
-                      >
-                        Inspect
-                      </a>
-                    ) : (
-                      <span className="text-[11px] text-slate-400 italic">No File</span>
-                    )}
-                  </div>
-                ))}
+              {/* Change Status */}
+              <div className="space-y-2 pt-4 border-t border-slate-100">
+                <label className="text-xs font-bold text-slate-700 block">Change Status:</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['submitted', 'under_review', 'document_verified', 'processing', 'completed', 'rejected'] as any[]).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => handleStatusChange(st)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors ${
+                        selectedApp.status === st 
+                          ? 'bg-[#104A96] text-white shadow-xs' 
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
               </div>
+
             </div>
 
-            {/* Change Status */}
-            <div className="space-y-2 pt-4 border-t border-slate-100">
-              <label className="text-xs font-bold text-slate-700 block">Change Status:</label>
-              <div className="flex flex-wrap gap-1.5">
-                {(['submitted', 'under_review', 'document_verified', 'processing', 'completed', 'rejected'] as any[]).map((st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => handleStatusChange(st)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors ${
-                      selectedApp.status === st 
-                        ? 'bg-[#104A96] text-white shadow-xs' 
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {st.replace('_', ' ')}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-2 text-right">
+            {/* Modal Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 flex items-center justify-end bg-slate-50">
               <button
                 type="button"
                 onClick={() => setSelectedApp(null)}
-                className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200"
+                className="px-5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-colors"
               >
                 Close
               </button>

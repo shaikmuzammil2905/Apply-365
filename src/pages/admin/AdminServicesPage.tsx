@@ -171,12 +171,13 @@ export const AdminServicesPage: React.FC = () => {
 
       {/* Edit Service Modal */}
       {isModalOpen && editingService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-8 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs overflow-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92dvh] overflow-hidden my-auto">
             
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            {/* Modal Header */}
+            <div className="shrink-0 p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-white z-10">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900">
                   Edit Service: {editingService.title}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -186,97 +187,102 @@ export const AdminServicesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Service Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.title}
+                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">Badge Label</label>
+                    <input
+                      type="text"
+                      value={formData.badge}
+                      onChange={(e) => setFormData(prev => ({ ...prev, badge: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                      placeholder="e.g. Fast & Secure"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Service Title *</label>
+                  <label className="text-xs font-bold text-slate-700">Short Summary</label>
                   <input
                     type="text"
-                    required
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    value={formData.shortDescription}
+                    onChange={(e) => setFormData(prev => ({ ...prev, shortDescription: e.target.value }))}
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700">Badge Label</label>
-                  <input
-                    type="text"
-                    value={formData.badge}
-                    onChange={(e) => setFormData(prev => ({ ...prev, badge: e.target.value }))}
+                  <label className="text-xs font-bold text-slate-700">Full Guidance Description</label>
+                  <textarea
+                    rows={3}
+                    value={formData.fullDescription}
+                    onChange={(e) => setFormData(prev => ({ ...prev, fullDescription: e.target.value }))}
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                    placeholder="e.g. Fast & Secure"
                   />
                 </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Official Regulatory Disclaimer</label>
+                  <textarea
+                    rows={2}
+                    value={formData.officialDisclaimer}
+                    onChange={(e) => setFormData(prev => ({ ...prev, officialDisclaimer: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">
+                    Required Documents Checklist (Format: "Document Name: Description" on each line)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={docsText}
+                    onChange={(e) => setDocsText(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">
+                    Key Benefits (One per line)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={benefitsText}
+                    onChange={(e) => setBenefitsText(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                  />
+                </div>
+
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Short Summary</label>
-                <input
-                  type="text"
-                  value={formData.shortDescription}
-                  onChange={(e) => setFormData(prev => ({ ...prev, shortDescription: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Full Guidance Description</label>
-                <textarea
-                  rows={3}
-                  value={formData.fullDescription}
-                  onChange={(e) => setFormData(prev => ({ ...prev, fullDescription: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">Official Regulatory Disclaimer</label>
-                <textarea
-                  rows={2}
-                  value={formData.officialDisclaimer}
-                  onChange={(e) => setFormData(prev => ({ ...prev, officialDisclaimer: e.target.value }))}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Required Documents Checklist (Format: "Document Name: Description" on each line)
-                </label>
-                <textarea
-                  rows={4}
-                  value={docsText}
-                  onChange={(e) => setDocsText(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Key Benefits (One per line)
-                </label>
-                <textarea
-                  rows={3}
-                  value={benefitsText}
-                  onChange={(e) => setBenefitsText(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#104A96] focus:outline-none"
-                />
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+              {/* Modal Footer */}
+              <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-white"
                 >
                   Cancel
                 </button>
@@ -284,7 +290,7 @@ export const AdminServicesPage: React.FC = () => {
                   type="submit"
                   className="px-6 py-2 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold shadow-md transition-all active:scale-95"
                 >
-                  Save & Update Website
+                  Save & Synchronize
                 </button>
               </div>
 
