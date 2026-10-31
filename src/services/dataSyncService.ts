@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import { Course, Lead, WebsiteSettings, WebsiteContent, MediaAsset, ActivityLog } from '../types/admin';
-import { ServiceDetail } from '../types/services';
+import { ServiceDetail, ServiceDocument } from '../types/services';
 import { servicesData as initialServicesData } from '../data/servicesData';
 import { CustomerApplication } from '../types/application';
 
@@ -486,6 +486,82 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
   await logActivity('Service Updated', 'service', service.id, `Admin modified service: ${service.title}`);
   notifyDataChange('services', service);
   return service;
+}
+
+export async function deleteService(serviceId: string): Promise<void> {
+  const all = getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
+  const filtered = all.filter(s => s.id !== serviceId && s.slug !== serviceId);
+  setStored(SERVICES_KEY, filtered);
+
+  try {
+    await supabase.from('services').delete().or(`id.eq.${serviceId},slug.eq.${serviceId}`);
+  } catch (err) {
+    console.warn('Supabase service delete warning:', err);
+  }
+
+  await logActivity('Service Deleted', 'service', serviceId, `Admin removed service ID: ${serviceId}`);
+  notifyDataChange('services');
+}
+
+export async function getServiceDocuments(serviceId: string): Promise<ServiceDocument[]> {
+  const service = await getServiceBySlug(serviceId);
+  if (!service || !service.documents) return [];
+
+  return service.documents.map((doc: any, idx: number) => {
+    const isOpt = doc.isOptional === true || doc.isMandatory === false || (doc.name && doc.name.toLowerCase().includes('optional'));
+    return {
+      id: doc.id || `doc-${service.id}-${idx + 1}`,
+      serviceId: service.id,
+      name: doc.name,
+      shortLabel: doc.shortLabel || doc.name.split('(')[0].trim(),
+      description: doc.description || 'Valid supporting documentation as required under statutory guidelines.',
+      instructions: doc.instructions || 'Ensure all details, dates and text are completely clear, readable and uncropped.',
+      category: doc.category || (doc.name.toLowerCase().includes('address') || doc.name.toLowerCase().includes('bill') ? 'Address Proof' : doc.name.toLowerCase().includes('photo') ? 'Photograph / Signature' : 'Identity Proof'),
+      isMandatory: !isOpt,
+      isOptional: isOpt,
+      isActive: doc.isActive !== false,
+      allowMultipleFiles: doc.allowMultipleFiles || false,
+      allowedFileTypes: doc.allowedFileTypes || ['pdf', 'jpg', 'jpeg', 'png'],
+      maxFileSizeMB: doc.maxFileSizeMB || 10,
+      minFiles: doc.minFiles || 1,
+      maxFiles: doc.maxFiles || (doc.allowMultipleFiles ? 5 : 1),
+      displayOrder: doc.displayOrder ?? (idx + 1)
+    };
+  });
+}
+
+export async function saveServiceDocuments(serviceId: string, documents: ServiceDocument[]): Promise<ServiceDocument[]> {
+  const service = await getServiceBySlug(serviceId);
+  if (!service) throw new Error(`Service ${serviceId} not found`);
+
+  const normalizedDocs = documents.map((doc, idx) => ({
+    ...doc,
+    serviceId: service.id,
+    displayOrder: idx + 1,
+    isMandatory: doc.isMandatory !== false,
+    isOptional: doc.isMandatory === false || doc.isOptional === true
+  }));
+
+  service.documents = normalizedDocs;
+  await saveService(service);
+  notifyDataChange('service_documents', { serviceId: service.id, documents: normalizedDocs });
+  return normalizedDocs;
+}
+
+export async function copyServiceDocuments(fromServiceId: string, toServiceId: string): Promise<ServiceDocument[]> {
+  const sourceDocs = await getServiceDocuments(fromServiceId);
+  if (!sourceDocs || sourceDocs.length === 0) {
+    throw new Error('Source service has no documents to copy');
+  }
+
+  const clonedDocs: ServiceDocument[] = sourceDocs.map((doc, idx) => ({
+    ...doc,
+    id: `doc-${toServiceId}-${Date.now()}-${idx + 1}`,
+    serviceId: toServiceId,
+    displayOrder: idx + 1
+  }));
+
+  return await saveServiceDocuments(toServiceId, clonedDocs);
 }
 
 // ==========================================

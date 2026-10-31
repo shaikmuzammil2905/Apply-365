@@ -37,6 +37,25 @@ export const AdminServicesPage: React.FC = () => {
     loadServices();
   }, []);
 
+  const handleOpenAddModal = () => {
+    setEditingService(null);
+    setFormData({
+      title: '',
+      slug: '',
+      badge: 'Popular Service',
+      accentColor: '#104A96',
+      iconName: 'FileText',
+      shortDescription: '',
+      fullDescription: '',
+      officialDisclaimer: 'Acceptable proof depends on current statutory requirements.',
+    });
+    setDocsText('Identity Proof: Valid government identification card\nAddress Proof: Recent utility bill or residential certificate');
+    setBenefitsText('Guaranteed pre-verification of documents\nDirect portal submission assistance\nFast status tracking and support');
+    setSaveError('');
+    setSaveSuccess('');
+    setIsModalOpen(true);
+  };
+
   const handleOpenEdit = (svc: ServiceDetail) => {
     setEditingService(svc);
     setFormData(svc);
@@ -49,7 +68,7 @@ export const AdminServicesPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingService || !formData.title || !formData.title.trim()) {
+    if (!formData.title || !formData.title.trim()) {
       setSaveError('Please enter a valid service title');
       return;
     }
@@ -69,22 +88,32 @@ export const AdminServicesPage: React.FC = () => {
       });
 
       const parsedBenefits = benefitsText.split('\n').map(b => b.trim()).filter(Boolean);
+      
+      const slug = formData.slug?.trim() || formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const id = editingService ? editingService.id : slug;
 
-      const updated: ServiceDetail = {
-        ...editingService,
+      const payload: ServiceDetail = {
+        id,
+        slug,
         title: formData.title.trim(),
-        badge: formData.badge !== undefined ? formData.badge : editingService.badge,
-        accentColor: formData.accentColor || editingService.accentColor,
-        shortDescription: formData.shortDescription !== undefined ? formData.shortDescription : editingService.shortDescription,
-        fullDescription: formData.fullDescription !== undefined ? formData.fullDescription : editingService.fullDescription,
-        officialDisclaimer: formData.officialDisclaimer !== undefined ? formData.officialDisclaimer : editingService.officialDisclaimer,
-        documents: parsedDocs.length > 0 ? parsedDocs : editingService.documents,
-        benefits: parsedBenefits.length > 0 ? parsedBenefits : editingService.benefits,
+        badge: formData.badge || (editingService ? editingService.badge : 'Popular Service'),
+        accentColor: formData.accentColor || (editingService ? editingService.accentColor : '#104A96'),
+        iconName: formData.iconName || (editingService ? editingService.iconName : 'FileText'),
+        shortDescription: formData.shortDescription?.trim() || (editingService ? editingService.shortDescription : ''),
+        fullDescription: formData.fullDescription?.trim() || (editingService ? editingService.fullDescription : formData.shortDescription?.trim() || ''),
+        officialDisclaimer: formData.officialDisclaimer?.trim() || (editingService ? editingService.officialDisclaimer : 'Acceptable proof depends on current statutory requirements.'),
+        documents: parsedDocs.length > 0 ? parsedDocs : (editingService ? editingService.documents : [{ name: 'Identity Proof', description: 'Valid government ID card.' }]),
+        benefits: parsedBenefits.length > 0 ? parsedBenefits : (editingService ? editingService.benefits : ['Zero error processing', 'Official verification assistance']),
+        processSteps: editingService?.processSteps || [
+          { title: 'Document Verification', description: 'Our documentation team reviews your proof.' },
+          { title: 'Form Submission', description: 'Accurate filing on official regulatory portal.' }
+        ],
+        faqs: editingService?.faqs || []
       };
 
-      await saveService(updated);
+      await saveService(payload);
       await loadServices();
-      setSaveSuccess('Service saved directly to Supabase and synchronized with live website!');
+      setSaveSuccess(editingService ? 'Service saved directly to Supabase and synchronized with live website!' : 'New service created and published live on website!');
       setTimeout(() => {
         setIsModalOpen(false);
       }, 700);
@@ -111,9 +140,18 @@ export const AdminServicesPage: React.FC = () => {
             <span>Government & Business Services Configuration</span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Manage titles, required document lists, regulatory disclaimers, and benefits for all 8 statutory service lines.
+            Manage titles, required document lists, regulatory disclaimers, and benefits for all statutory service lines.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleOpenAddModal}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-95 shrink-0 self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add New Service</span>
+        </button>
       </div>
 
       {/* Search */}
@@ -190,8 +228,8 @@ export const AdminServicesPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Edit Service Modal */}
-      {isModalOpen && editingService && (
+      {/* Edit / Add Service Modal */}
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs overflow-hidden">
           <div className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92dvh] overflow-hidden my-auto">
             
@@ -199,10 +237,12 @@ export const AdminServicesPage: React.FC = () => {
             <div className="shrink-0 p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-white z-10">
               <div>
                 <h3 className="text-lg sm:text-xl font-bold text-slate-900">
-                  Edit Service: {editingService.title}
+                  {editingService ? `Edit Service: ${editingService.title}` : 'Add New Government / Business Service'}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Update guidelines, documents and public information for /{editingService.slug}
+                  {editingService 
+                    ? `Update guidelines, documents and public information for /${editingService.slug}`
+                    : 'Publish a new statutory service directly to Supabase and live website'}
                 </p>
               </div>
               <button

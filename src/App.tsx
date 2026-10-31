@@ -38,6 +38,7 @@ import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminCoursesPage } from './pages/admin/AdminCoursesPage';
 import { AdminServicesPage } from './pages/admin/AdminServicesPage';
+import { AdminDocumentsPage } from './pages/admin/AdminDocumentsPage';
 import { AdminLeadsPage } from './pages/admin/AdminLeadsPage';
 import { AdminApplicationsPage } from './pages/admin/AdminApplicationsPage';
 import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
@@ -161,6 +162,16 @@ const AppContent: React.FC = () => {
               <AdminRoute>
                 <AdminLayout>
                   <AdminServicesPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/documents"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminDocumentsPage />
                 </AdminLayout>
               </AdminRoute>
             }

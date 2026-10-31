@@ -134,15 +134,30 @@ export const ServiceDetailPage: React.FC = () => {
     });
     setFormData(initial);
 
-    // Initial documents from config
-    const initialDocs: ApplicationDocument[] = config.documents.map((d) => ({
-      id: d.id,
-      name: d.name,
-      type: d.type as any,
-      isReady: true,
-      status: 'pending',
-    }));
-    setDocuments(initialDocs);
+    // Initial documents dynamically loaded from Supabase service.documents or static config fallback
+    const dynamicDocsSource = (service.documents && service.documents.length > 0)
+      ? service.documents.map((d, idx) => ({
+          id: d.id || `doc-${activeSlug}-${idx}`,
+          name: d.name,
+          type: (d.category || 'proof') as any,
+          isReady: true,
+          status: 'pending' as const,
+          description: d.description || d.instructions,
+          isMandatory: d.isMandatory !== false,
+          isOptional: d.isOptional === true || d.isMandatory === false || d.name.toLowerCase().includes('(optional)')
+        }))
+      : config.documents.map((d) => ({
+          id: d.id,
+          name: d.name,
+          type: d.type as any,
+          isReady: true,
+          status: 'pending' as const,
+          description: d.description,
+          isMandatory: d.isMandatory !== false,
+          isOptional: (d as any).isOptional === true || d.name.toLowerCase().includes('(optional)')
+        }));
+
+    setDocuments(dynamicDocsSource);
 
     const initialChecklist: Record<string, boolean> = {};
     if (service.documents && Array.isArray(service.documents)) {
@@ -641,6 +656,11 @@ export const ServiceDetailPage: React.FC = () => {
                 {documents.map((doc) => {
                   const isUploaded = doc.status === 'uploaded';
                   const docCfg = config.documents.find((d) => d.id === doc.id);
+                  const isOptional = (doc as any).isOptional === true || 
+                                     (doc as any).isMandatory === false || 
+                                     (docCfg as any)?.isOptional === true || 
+                                     doc.name.toLowerCase().includes('(optional)');
+                  const isRequired = !isOptional;
 
                   return (
                     <div
@@ -666,9 +686,13 @@ export const ServiceDetailPage: React.FC = () => {
                                 {doc.name}
                               </h4>
                               <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                isUploaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                isUploaded 
+                                  ? 'bg-emerald-100 text-emerald-800' 
+                                  : isRequired 
+                                    ? 'bg-amber-100 text-amber-800' 
+                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
                               }`}>
-                                {isUploaded ? 'Uploaded' : 'Required'}
+                                {isUploaded ? 'Uploaded' : isRequired ? 'Required' : 'Optional'}
                               </span>
                             </div>
 
@@ -676,7 +700,7 @@ export const ServiceDetailPage: React.FC = () => {
                               {doc.fileName ? (
                                 <strong className="text-slate-800">{doc.fileName} ({doc.fileSize})</strong>
                               ) : (
-                                docCfg?.description || 'Accepted formats: JPG, JPEG, PNG, PDF (Max 10MB)'
+                                (doc as any).description || docCfg?.description || 'Accepted formats: JPG, JPEG, PNG, PDF (Max 10MB)'
                               )}
                             </p>
                           </div>

@@ -18,7 +18,8 @@ import {
   X, 
   ShieldCheck,
   Database,
-  ChevronRight
+  ChevronRight,
+  FileCheck2
 } from 'lucide-react';
 
 interface NavItem {
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
   { name: 'Courses', path: '/admin/courses', icon: GraduationCap },
   { name: 'Services', path: '/admin/services', icon: Layers },
+  { name: 'Document Management', path: '/admin/documents', icon: FileCheck2 },
   { name: 'Leads & Enquiries', path: '/admin/leads', icon: Inbox },
   { name: 'Applications', path: '/admin/applications', icon: FileText },
   { name: 'Customers', path: '/admin/customers', icon: Users },

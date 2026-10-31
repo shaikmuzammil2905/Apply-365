@@ -1,7 +1,25 @@
 export interface ServiceDocument {
+  id?: string;
+  serviceId?: string;
   name: string;
+  shortLabel?: string;
   description?: string;
+  instructions?: string;
+  category?: string;
   isOptional?: boolean;
+  isMandatory?: boolean;
+  isActive?: boolean;
+  allowMultipleFiles?: boolean;
+  allowedFileTypes?: string[];
+  maxFileSizeMB?: number;
+  minFiles?: number;
+  maxFiles?: number;
+  displayOrder?: number;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  status?: 'pending' | 'uploaded';
+  isReady?: boolean;
 }
 
 export interface ServiceDetail {
