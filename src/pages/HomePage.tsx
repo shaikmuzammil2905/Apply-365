@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { Hero } from '../components/Hero';
 import { ServiceCard } from '../components/ServiceCard';
 import { servicesData } from '../data/servicesData';
-import { getPublishedCourses } from '../services/dataSyncService';
+import { getPublishedCourses, getServices } from '../services/dataSyncService';
 import { Course } from '../types/admin';
+import { ServiceDetail } from '../types/services';
 import { 
   ArrowRight, 
   FileCheck, 
@@ -94,10 +95,17 @@ const mobileServicesList = [
 
 export const HomePage: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [services, setServices] = useState<ServiceDetail[]>(servicesData);
 
   useEffect(() => {
     getPublishedCourses().then(setCourses);
-    const handleSync = () => getPublishedCourses().then(setCourses);
+    getServices().then(setServices);
+
+    const handleSync = () => {
+      getPublishedCourses().then(setCourses);
+      getServices().then(setServices);
+    };
+
     window.addEventListener('apply365_data_sync', handleSync);
     return () => window.removeEventListener('apply365_data_sync', handleSync);
   }, []);
@@ -129,7 +137,7 @@ export const HomePage: React.FC = () => {
 
           {/* Desktop Seven Interactive Service Cards Grid */}
           <div className="hidden lg:grid grid-cols-3 gap-6 xl:gap-8">
-            {servicesData.map((service) => (
+            {services.map((service) => (
               <ServiceCard key={service.id} service={service} />
             ))}
           </div>
@@ -137,6 +145,9 @@ export const HomePage: React.FC = () => {
           {/* Mobile Seven Horizontal Service Cards List (Matching image copy 16.png) */}
           <div className="lg:hidden space-y-3">
             {mobileServicesList.map((item, idx) => {
+              const matchedService = services.find(s => s.slug === item.slug || s.id === item.slug);
+              const title = matchedService ? matchedService.title : item.title;
+              const subtitle = matchedService ? matchedService.shortDescription : item.subtitle;
               const IconComp = item.icon;
               return (
                 <Link
@@ -150,10 +161,10 @@ export const HomePage: React.FC = () => {
                     </div>
                     <div className="text-left">
                       <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#104A96] transition-colors leading-tight">
-                        {item.title}
+                        {title}
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                        {item.subtitle}
+                      <p className="text-xs text-slate-500 mt-0.5 font-medium line-clamp-1">
+                        {subtitle}
                       </p>
                     </div>
                   </div>

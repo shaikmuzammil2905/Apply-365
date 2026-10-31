@@ -398,6 +398,50 @@ export async function getServices(): Promise<ServiceDetail[]> {
   return getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
 }
 
+export function getInitialServiceBySlug(slug: string): ServiceDetail {
+  const cached = getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
+  if (!slug) return cached[0] || initialServicesData[0];
+  const raw = slug.toLowerCase().trim();
+
+  const normalized = 
+    raw === 'aadhaar-card' || raw === 'aadhaar' || raw.includes('aadhaar') || raw.includes('aadhar') ? 'aadhaar' :
+    raw === 'pan' || raw === 'pan-card' || raw.includes('pan') ? 'pan-card' :
+    raw === 'voter' || raw === 'voter-id' || raw.includes('voter') ? 'voter-id' :
+    raw === 'msme-registration' || raw === 'msme' || raw.includes('msme') || raw.includes('udyam') ? 'msme' :
+    raw === 'labour-license' || raw === 'labour' || raw.includes('labour') || raw.includes('labor') ? 'labour-license' :
+    raw === 'uan-pf-services' || raw === 'uan-pf' || raw === 'pf' || raw === 'uan' || raw.includes('uan') || raw.includes('pf') ? 'uan-pf' :
+    raw === 'esi-details-update' || raw === 'esi' || raw.includes('esi') ? 'esi' :
+    raw;
+
+  const found = cached.find(s => s.slug === normalized || s.id === normalized || s.slug === raw || s.id === raw);
+  if (found) return found;
+
+  const partial = cached.find(s => s.slug.includes(normalized) || normalized.includes(s.slug));
+  return partial || cached[0] || initialServicesData[0];
+}
+
+export async function getServiceBySlug(slug: string): Promise<ServiceDetail> {
+  const all = await getServices();
+  if (!slug) return all[0] || initialServicesData[0];
+  const raw = slug.toLowerCase().trim();
+
+  const normalized = 
+    raw === 'aadhaar-card' || raw === 'aadhaar' || raw.includes('aadhaar') || raw.includes('aadhar') ? 'aadhaar' :
+    raw === 'pan' || raw === 'pan-card' || raw.includes('pan') ? 'pan-card' :
+    raw === 'voter' || raw === 'voter-id' || raw.includes('voter') ? 'voter-id' :
+    raw === 'msme-registration' || raw === 'msme' || raw.includes('msme') || raw.includes('udyam') ? 'msme' :
+    raw === 'labour-license' || raw === 'labour' || raw.includes('labour') || raw.includes('labor') ? 'labour-license' :
+    raw === 'uan-pf-services' || raw === 'uan-pf' || raw === 'pf' || raw === 'uan' || raw.includes('uan') || raw.includes('pf') ? 'uan-pf' :
+    raw === 'esi-details-update' || raw === 'esi' || raw.includes('esi') ? 'esi' :
+    raw;
+
+  const found = all.find(s => s.slug === normalized || s.id === normalized || s.slug === raw || s.id === raw);
+  if (found) return found;
+
+  const partial = all.find(s => s.slug.includes(normalized) || normalized.includes(s.slug));
+  return partial || all[0] || initialServicesData[0];
+}
+
 export async function saveService(service: ServiceDetail): Promise<ServiceDetail> {
   const all = getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
   const idx = all.findIndex(s => s.id === service.id || s.slug === service.slug);
@@ -409,25 +453,34 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
   }
   setStored(SERVICES_KEY, all);
 
-  try {
-    await supabase.from('services').upsert({
-      id: service.id,
-      slug: service.slug,
-      title: service.title,
-      short_description: service.shortDescription,
-      full_description: service.fullDescription,
-      accent_color: service.accentColor,
-      badge: service.badge,
-      icon_name: service.iconName,
-      documents: service.documents,
-      official_disclaimer: service.officialDisclaimer,
-      benefits: service.benefits,
-      process_steps: service.processSteps,
-      faqs: service.faqs,
-      updated_at: new Date().toISOString()
-    });
-  } catch (err) {
-    console.warn('Supabase service upsert failed:', err);
+  // Sync to Supabase
+  const payload: any = {
+    id: service.id,
+    slug: service.slug,
+    title: service.title,
+    short_description: service.shortDescription,
+    full_description: service.fullDescription,
+    accent_color: service.accentColor,
+    badge: service.badge,
+    icon_name: service.iconName,
+    documents: service.documents,
+    benefits: service.benefits,
+    process_steps: service.processSteps,
+    faqs: service.faqs,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error: primaryError } = await supabase.from('services').upsert({
+    ...payload,
+    official_disclaimer: service.officialDisclaimer
+  });
+
+  if (primaryError) {
+    const { error: fallbackError } = await supabase.from('services').upsert(payload);
+    if (fallbackError) {
+      console.error('Supabase service fallback upsert failed:', fallbackError);
+      throw new Error(`Supabase error: ${fallbackError.message}`);
+    }
   }
 
   await logActivity('Service Updated', 'service', service.id, `Admin modified service: ${service.title}`);

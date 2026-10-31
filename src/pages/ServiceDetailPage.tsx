@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { servicesData, getServiceBySlug } from '../data/servicesData';
+import { getServiceBySlug, getInitialServiceBySlug } from '../services/dataSyncService';
+import { servicesData } from '../data/servicesData';
+import { ServiceDetail } from '../types/services';
 import { getServiceAppConfig, ServiceAppConfig } from '../data/serviceApplicationConfigs';
 import { useAuth } from '../context/AuthContext';
 import { saveApplication } from '../services/dbService';
@@ -60,9 +62,33 @@ export const ServiceDetailPage: React.FC = () => {
   const pathSlug = pathParts.length > 0 ? pathParts[pathParts.length - 1] : undefined;
   const activeSlug = (paramSlug || serviceSlug || pathSlug || 'aadhaar').toLowerCase().trim();
 
-  // Always resolve to a valid service, with fallbacks so "Service Not Found" NEVER displays!
-  const service = getServiceBySlug(activeSlug) || servicesData[0];
+  // Dynamic service state with synchronous instant cache initialization
+  const [service, setService] = useState<ServiceDetail>(() => getInitialServiceBySlug(activeSlug));
   const config: ServiceAppConfig = getServiceAppConfig(activeSlug);
+
+  // Sync service from Supabase / dataSyncService and listen for Admin updates
+  useEffect(() => {
+    let isMounted = true;
+    getServiceBySlug(activeSlug).then((data) => {
+      if (isMounted && data) {
+        setService(data);
+      }
+    });
+
+    const handleSync = () => {
+      getServiceBySlug(activeSlug).then((data) => {
+        if (isMounted && data) {
+          setService(data);
+        }
+      });
+    };
+
+    window.addEventListener('apply365_data_sync', handleSync);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('apply365_data_sync', handleSync);
+    };
+  }, [activeSlug]);
 
   // Sub-service selected option state (e.g. 'address-update', 'new-pan', etc.)
   const [selectedSubService, setSelectedSubService] = useState<string>('');
@@ -85,7 +111,7 @@ export const ServiceDetailPage: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [showInfoAccordion, setShowInfoAccordion] = useState(false);
 
-  // Initialize or re-initialize when slug changes
+  // Initialize or re-initialize when slug or service data changes
   useEffect(() => {
     if (!service) return;
 
@@ -119,16 +145,18 @@ export const ServiceDetailPage: React.FC = () => {
     setDocuments(initialDocs);
 
     const initialChecklist: Record<string, boolean> = {};
-    service.documents.forEach((d) => {
-      initialChecklist[d.name] = true;
-    });
+    if (service.documents && Array.isArray(service.documents)) {
+      service.documents.forEach((d) => {
+        initialChecklist[d.name] = true;
+      });
+    }
     setCheckedDocs(initialChecklist);
 
     setSubmittedApp(null);
     setErrorMsg('');
   }, [activeSlug, currentUser, service, config]);
 
-  const activeService = service || servicesData[0];
+  const activeService = service || getInitialServiceBySlug(activeSlug);
   const IconComponent = iconMap[activeService.iconName] || Fingerprint;
 
   const handleInputChange = (field: string, value: any) => {

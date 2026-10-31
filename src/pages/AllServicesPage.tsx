@@ -1,14 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { ServiceCard } from '../components/ServiceCard';
+import { getServices } from '../services/dataSyncService';
 import { servicesData } from '../data/servicesData';
+import { ServiceDetail } from '../types/services';
 import { Search, Sparkles, HelpCircle } from 'lucide-react';
 
 export const AllServicesPage: React.FC = () => {
+  const [services, setServices] = useState<ServiceDetail[]>(servicesData);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredServices = servicesData.filter((service) => {
+  useEffect(() => {
+    getServices().then(setServices);
+    const handleSync = () => getServices().then(setServices);
+    window.addEventListener('apply365_data_sync', handleSync);
+    return () => window.removeEventListener('apply365_data_sync', handleSync);
+  }, []);
+
+  const filteredServices = services.filter((service) => {
     const term = searchTerm.toLowerCase();
     const matchesTitle = service.title.toLowerCase().includes(term);
     const matchesDesc = service.shortDescription.toLowerCase().includes(term);

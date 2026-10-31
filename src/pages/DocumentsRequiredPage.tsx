@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Breadcrumbs } from '../components/Breadcrumbs';
+import { getServices } from '../services/dataSyncService';
 import { servicesData } from '../data/servicesData';
+import { ServiceDetail } from '../types/services';
 import { 
   FileCheck, 
   Search, 
@@ -35,7 +37,16 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export const DocumentsRequiredPage: React.FC = () => {
+  const [services, setServices] = useState<ServiceDetail[]>(servicesData);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  useEffect(() => {
+    getServices().then(setServices);
+    const handleSync = () => getServices().then(setServices);
+    window.addEventListener('apply365_data_sync', handleSync);
+    return () => window.removeEventListener('apply365_data_sync', handleSync);
+  }, []);
+
   // State for which service accordions are expanded (default all true)
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     'aadhaar': true,
@@ -59,13 +70,13 @@ export const DocumentsRequiredPage: React.FC = () => {
 
   const expandAll = () => {
     const all: Record<string, boolean> = {};
-    servicesData.forEach(s => { all[s.id] = true; });
+    services.forEach(s => { all[s.id] = true; });
     setExpandedSections(all);
   };
 
   const collapseAll = () => {
     const none: Record<string, boolean> = {};
-    servicesData.forEach(s => { none[s.id] = false; });
+    services.forEach(s => { none[s.id] = false; });
     setExpandedSections(none);
   };
 
@@ -92,7 +103,7 @@ export const DocumentsRequiredPage: React.FC = () => {
     content += 'Website: https://apply365.in | Helpline: +91 98765 43210\n';
     content += '==================================================\n\n';
 
-    servicesData.forEach(s => {
+    services.forEach(s => {
       content += `SERVICE: ${s.title.toUpperCase()}\n`;
       content += `Note: ${s.officialDisclaimer}\n`;
       content += 'Documents Required:\n';
@@ -117,7 +128,7 @@ export const DocumentsRequiredPage: React.FC = () => {
   };
 
   // Filter services by search term
-  const filteredServices = servicesData.filter(s => {
+  const filteredServices = services.filter(s => {
     const term = searchTerm.toLowerCase();
     const titleMatch = s.title.toLowerCase().includes(term);
     const docMatch = s.documents.some(d => d.name.toLowerCase().includes(term) || (d.description && d.description.toLowerCase().includes(term)));

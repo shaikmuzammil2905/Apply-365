@@ -24,6 +24,9 @@ export const AdminServicesPage: React.FC = () => {
   const [formData, setFormData] = useState<Partial<ServiceDetail>>({});
   const [docsText, setDocsText] = useState('');
   const [benefitsText, setBenefitsText] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState('');
 
   const loadServices = async () => {
     const list = await getServices();
@@ -39,39 +42,57 @@ export const AdminServicesPage: React.FC = () => {
     setFormData(svc);
     setDocsText(svc.documents.map(d => `${d.name}: ${d.description || ''}`).join('\n'));
     setBenefitsText(svc.benefits.join('\n'));
+    setSaveError('');
+    setSaveSuccess('');
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingService || !formData.title) return;
+    if (!editingService || !formData.title || !formData.title.trim()) {
+      setSaveError('Please enter a valid service title');
+      return;
+    }
 
-    // Parse docsText
-    const parsedDocs = docsText.split('\n').filter(Boolean).map(line => {
-      const parts = line.split(':');
-      return {
-        name: parts[0]?.trim() || line,
-        description: parts.slice(1).join(':').trim() || undefined
+    setIsSaving(true);
+    setSaveError('');
+    setSaveSuccess('');
+
+    try {
+      // Parse docsText
+      const parsedDocs = docsText.split('\n').filter(Boolean).map(line => {
+        const parts = line.split(':');
+        return {
+          name: parts[0]?.trim() || line,
+          description: parts.slice(1).join(':').trim() || undefined
+        };
+      });
+
+      const parsedBenefits = benefitsText.split('\n').map(b => b.trim()).filter(Boolean);
+
+      const updated: ServiceDetail = {
+        ...editingService,
+        title: formData.title.trim(),
+        badge: formData.badge !== undefined ? formData.badge : editingService.badge,
+        accentColor: formData.accentColor || editingService.accentColor,
+        shortDescription: formData.shortDescription !== undefined ? formData.shortDescription : editingService.shortDescription,
+        fullDescription: formData.fullDescription !== undefined ? formData.fullDescription : editingService.fullDescription,
+        officialDisclaimer: formData.officialDisclaimer !== undefined ? formData.officialDisclaimer : editingService.officialDisclaimer,
+        documents: parsedDocs.length > 0 ? parsedDocs : editingService.documents,
+        benefits: parsedBenefits.length > 0 ? parsedBenefits : editingService.benefits,
       };
-    });
 
-    const parsedBenefits = benefitsText.split('\n').map(b => b.trim()).filter(Boolean);
-
-    const updated: ServiceDetail = {
-      ...editingService,
-      title: formData.title || editingService.title,
-      badge: formData.badge || editingService.badge,
-      accentColor: formData.accentColor || editingService.accentColor,
-      shortDescription: formData.shortDescription || editingService.shortDescription,
-      fullDescription: formData.fullDescription || editingService.fullDescription,
-      officialDisclaimer: formData.officialDisclaimer || editingService.officialDisclaimer,
-      documents: parsedDocs.length > 0 ? parsedDocs : editingService.documents,
-      benefits: parsedBenefits.length > 0 ? parsedBenefits : editingService.benefits,
-    };
-
-    await saveService(updated);
-    await loadServices();
-    setIsModalOpen(false);
+      await saveService(updated);
+      await loadServices();
+      setSaveSuccess('Service saved directly to Supabase and synchronized with live website!');
+      setTimeout(() => {
+        setIsModalOpen(false);
+      }, 700);
+    } catch (err: any) {
+      setSaveError('Save failed: ' + (err.message || 'Unknown error occurred while connecting to Supabase'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const filtered = services.filter(s =>
@@ -197,6 +218,20 @@ export const AdminServicesPage: React.FC = () => {
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
                 
+                {saveError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold flex items-center gap-2">
+                    <X className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>{saveError}</span>
+                  </div>
+                )}
+
+                {saveSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
+                    <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>{saveSuccess}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-700">Service Title *</label>
@@ -288,9 +323,17 @@ export const AdminServicesPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold shadow-md transition-all active:scale-95"
+                  disabled={isSaving}
+                  className="px-6 py-2 rounded-xl bg-[#104A96] hover:bg-[#07366F] disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all active:scale-95 flex items-center gap-1.5"
                 >
-                  Save & Synchronize
+                  {isSaving ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Saving to Supabase...</span>
+                    </>
+                  ) : (
+                    <span>Save & Synchronize</span>
+                  )}
                 </button>
               </div>
 

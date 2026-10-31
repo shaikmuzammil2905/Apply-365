@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS public.services (
     accent_color TEXT DEFAULT '#104A96',
     badge TEXT DEFAULT 'Popular Service',
     icon_name TEXT DEFAULT 'FileText',
+    official_disclaimer TEXT,
     documents JSONB DEFAULT '[]'::JSONB,
     benefits JSONB DEFAULT '[]'::JSONB,
     process_steps JSONB DEFAULT '[]'::JSONB,
@@ -66,6 +67,8 @@ CREATE TABLE IF NOT EXISTS public.services (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.services ADD COLUMN IF NOT EXISTS official_disclaimer TEXT;
 
 -- 5. LEADS AND ENQUIRIES TABLE
 CREATE TABLE IF NOT EXISTS public.leads (
