@@ -25,7 +25,13 @@ export type ApplicationStatus =
   | 'Submitted' 
   | 'Under Review' 
   | 'Action Required' 
-  | 'Completed';
+  | 'Completed'
+  | 'submitted'
+  | 'under_review'
+  | 'document_verified'
+  | 'processing'
+  | 'completed'
+  | 'rejected';
 
 export interface AadhaarFormData {
   // Step 1: Customer Details
@@ -61,10 +67,14 @@ export interface CustomerApplication {
   customerEmail: string;
   customerMobile: string;
   serviceId: string; // 'aadhaar'
+  serviceSlug?: string;
   serviceTitle: string;
+  serviceType?: string;
   status: ApplicationStatus;
   submissionDate: string;
-  formData: AadhaarFormData;
+  createdAt?: string;
+  priority?: string;
+  formData: any;
   documents: ApplicationDocument[];
   updatedAt: string;
 }

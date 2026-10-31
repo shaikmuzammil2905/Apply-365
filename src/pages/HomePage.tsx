@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Hero } from '../components/Hero';
 import { ServiceCard } from '../components/ServiceCard';
 import { servicesData } from '../data/servicesData';
+import { getPublishedCourses } from '../services/dataSyncService';
+import { Course } from '../types/admin';
 import { 
   ArrowRight, 
   FileCheck, 
@@ -20,7 +22,8 @@ import {
   FileCheck2,
   Landmark,
   HeartHandshake,
-  ChevronRight
+  ChevronRight,
+  GraduationCap
 } from 'lucide-react';
 
 const mobileServicesList = [
@@ -90,6 +93,15 @@ const mobileServicesList = [
 ];
 
 export const HomePage: React.FC = () => {
+  const [courses, setCourses] = useState<Course[]>([]);
+
+  useEffect(() => {
+    getPublishedCourses().then(setCourses);
+    const handleSync = () => getPublishedCourses().then(setCourses);
+    window.addEventListener('apply365_data_sync', handleSync);
+    return () => window.removeEventListener('apply365_data_sync', handleSync);
+  }, []);
+
   return (
     <div>
       {/* 1. Hero Section */}
@@ -178,6 +190,87 @@ export const HomePage: React.FC = () => {
 
         </div>
       </section>
+
+      {/* 2.5 Certified Vocational & Government Portal Courses Section */}
+      {courses.length > 0 && (
+        <section id="our-courses" className="py-14 sm:py-16 bg-[#F8FAFC] border-b border-slate-200/60">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-orange-50 text-[#FF8500] border border-orange-200 text-xs font-bold uppercase tracking-wider mb-2.5">
+                <GraduationCap className="w-4 h-4" />
+                <span>Certified Vocational Training</span>
+              </div>
+              <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+                Government Portal & Compliance Training Courses
+              </h2>
+              <p className="mt-3 text-xs sm:text-sm text-slate-600 max-w-xl mx-auto leading-relaxed">
+                Practical, hands-on certification courses to launch your own Digital Seva Kendra or advance your career in business compliance.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              {courses.slice(0, 4).map((course) => (
+                <div
+                  key={course.id}
+                  className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="relative h-40 w-full bg-slate-100 overflow-hidden">
+                      <img
+                        src={course.imageUrl}
+                        alt={course.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute top-2.5 left-2.5">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/95 text-[#104A96] shadow-2xs">
+                          {course.category}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold">
+                        <span>{course.duration}</span>
+                        <span className="font-bold text-[#104A96]">{course.price}</span>
+                      </div>
+
+                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#104A96] transition-colors line-clamp-2 leading-snug">
+                        {course.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                        {course.shortDescription}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 pt-0">
+                    <Link
+                      to={`/courses/${course.slug}`}
+                      className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-50 hover:bg-[#104A96] text-[#104A96] hover:text-white font-bold text-xs border border-slate-200 transition-all active:scale-95"
+                    >
+                      <span>Course Details</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 text-center">
+              <Link
+                to="/courses"
+                className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-bold text-xs sm:text-sm px-6 py-3 rounded-xl border-2 border-[#104A96] transition-all shadow-xs"
+              >
+                <span>Browse All Certified Courses</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+          </div>
+        </section>
+      )}
 
       {/* 3. How Apply365 Works (4-Step Process) */}
       <section className="py-16 lg:py-20 bg-[#F7F9FC] border-b border-slate-100">

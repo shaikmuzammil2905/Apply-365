@@ -120,6 +120,11 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
+                <Link to="/courses" className="text-slate-300 hover:text-white transition-colors text-amber-300 font-semibold">
+                  Certified Courses & Training
+                </Link>
+              </li>
+              <li>
                 <Link to="/documents-required" className="text-slate-300 hover:text-white transition-colors font-semibold text-emerald-400">
                   Documents Required Checklist
                 </Link>

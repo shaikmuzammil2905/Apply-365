@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Send, MessageSquare, Phone, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { servicesData } from '../data/servicesData';
+import { submitLead } from '../services/dataSyncService';
 
 interface QuickEnquiryModalProps {
   isOpen: boolean;
@@ -23,7 +24,7 @@ export const QuickEnquiryModal: React.FC<QuickEnquiryModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError('Please provide your name.');
@@ -36,9 +37,18 @@ export const QuickEnquiryModal: React.FC<QuickEnquiryModalProps> = ({
     }
 
     try {
+      const selected = servicesData.find(s => s.id === serviceId) || servicesData[0];
+      await submitLead({
+        customerName: name.trim(),
+        mobile: cleanPhone,
+        leadType: 'callback_request',
+        targetId: selected.id,
+        targetTitle: selected.title,
+        message: note.trim() || `Customer requested a free callback regarding ${selected.title}`,
+      });
       confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
     } catch (err) {
-      // Confetti fallback
+      // Non-blocking
     }
 
     setError('');

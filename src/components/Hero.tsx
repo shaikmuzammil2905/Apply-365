@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getWebsiteContent, INITIAL_WEBSITE_CONTENT } from '../services/dataSyncService';
+import { WebsiteContent } from '../types/admin';
 import { 
   ShieldCheck, 
   Zap, 
@@ -39,6 +41,15 @@ const sevenServices: ServicePill[] = [
 ];
 
 export const Hero: React.FC = () => {
+  const [content, setContent] = useState<WebsiteContent>(INITIAL_WEBSITE_CONTENT);
+
+  useEffect(() => {
+    getWebsiteContent().then(setContent);
+    const handleSync = () => getWebsiteContent().then(setContent);
+    window.addEventListener('apply365_data_sync', handleSync);
+    return () => window.removeEventListener('apply365_data_sync', handleSync);
+  }, []);
+
   const scrollToServices = () => {
     const el = document.getElementById('our-services');
     if (el) {
@@ -109,18 +120,18 @@ export const Hero: React.FC = () => {
             {/* Eyebrow */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-[#FF8500] text-xs font-bold tracking-wide shadow-xs animate-pulse">
               <span className="w-2 h-2 rounded-full bg-[#FF8500]" />
-              <span>Government & Business Services Made Easy</span>
+              <span>{content.hero.badge}</span>
             </div>
 
             {/* Main Headline */}
             <h1 className="text-4xl xl:text-5xl font-extrabold tracking-tight leading-[1.12]">
-              <span className="text-[#104A96] block">Your Documents.</span>
-              <span className="text-[#FF8500] block mt-1">Our Priority.</span>
+              <span className="text-[#104A96] block">{content.hero.headlinePart1}</span>
+              <span className="text-[#FF8500] block mt-1">{content.hero.headlinePart2}</span>
             </h1>
 
             {/* Supporting Text */}
             <p className="text-base xl:text-lg text-slate-600 leading-relaxed font-normal max-w-lg">
-              Apply365 provides fast, reliable and hassle-free assistance for all your government and business service needs.
+              {content.hero.description}
             </p>
 
             {/* Four Trust Indicators */}
@@ -129,28 +140,28 @@ export const Hero: React.FC = () => {
                 <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#104A96] flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
-                <div className="text-xs font-bold text-slate-800">Secure & Trusted</div>
+                <div className="text-xs font-bold text-slate-800">{content.trustIndicators[0]?.title || 'Secure & Trusted'}</div>
               </div>
 
               <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-xs border border-slate-100">
                 <div className="w-8 h-8 rounded-lg bg-orange-50 text-[#FF8500] flex items-center justify-center shrink-0">
                   <Zap className="w-4 h-4" />
                 </div>
-                <div className="text-xs font-bold text-slate-800">Fast Processing</div>
+                <div className="text-xs font-bold text-slate-800">{content.trustIndicators[1]?.title || 'Fast Processing'}</div>
               </div>
 
               <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-xs border border-slate-100">
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <Headphones className="w-4 h-4" />
                 </div>
-                <div className="text-xs font-bold text-slate-800">Expert Support</div>
+                <div className="text-xs font-bold text-slate-800">{content.trustIndicators[2]?.title || 'Expert Support'}</div>
               </div>
 
               <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white shadow-xs border border-slate-100">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
-                <div className="text-xs font-bold text-slate-800">100% Genuine Services</div>
+                <div className="text-xs font-bold text-slate-800">{content.trustIndicators[3]?.title || '100% Genuine'}</div>
               </div>
             </div>
 
@@ -161,7 +172,7 @@ export const Hero: React.FC = () => {
                 onClick={scrollToServices}
                 className="inline-flex items-center gap-2.5 bg-[#104A96] hover:bg-[#07366F] text-white font-bold text-sm xl:text-base px-7 py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 group"
               >
-                <span>Explore Our Services</span>
+                <span>{content.hero.primaryButtonText}</span>
                 <ArrowDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
               </button>
 
@@ -170,7 +181,7 @@ export const Hero: React.FC = () => {
                 className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-semibold text-sm xl:text-base px-6 py-3.5 rounded-xl border-2 border-[#104A96]/30 hover:border-[#104A96] transition-colors shadow-xs"
               >
                 <Phone className="w-4 h-4 text-[#104A96]" />
-                <span>Contact Us</span>
+                <span>{content.hero.secondaryButtonText}</span>
               </Link>
             </div>
 
@@ -191,40 +202,40 @@ export const Hero: React.FC = () => {
           {/* Eyebrow */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-[#FF8500] text-xs font-bold tracking-wide">
             <span className="w-1.5 h-1.5 rounded-full bg-[#FF8500]" />
-            <span>Government & Business Services Made Easy</span>
+            <span>{content.hero.badge}</span>
           </div>
 
           {/* Heading */}
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-[1.15]">
-            <span className="text-[#104A96] block sm:inline">Your Documents.</span>{' '}
-            <span className="text-[#FF8500] block sm:inline">Our Priority.</span>
+            <span className="text-[#104A96] block sm:inline">{content.hero.headlinePart1}</span>{' '}
+            <span className="text-[#FF8500] block sm:inline">{content.hero.headlinePart2}</span>
           </h1>
 
           {/* Description */}
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto sm:mx-0">
-            Apply365 provides fast, reliable and hassle-free assistance for all your government and business service needs.
+            {content.hero.description}
           </p>
 
           {/* 4 Trust Indicators in 2-column grid with clean blue line icons */}
           <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto sm:mx-0 pt-1 text-left">
             <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
               <ShieldCheck className="w-4 h-4 text-[#104A96] shrink-0" />
-              <span className="text-[11px] sm:text-xs font-bold text-slate-800">Secure & Trusted</span>
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">{content.trustIndicators[0]?.title || 'Secure & Trusted'}</span>
             </div>
 
             <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
               <Zap className="w-4 h-4 text-[#104A96] shrink-0" />
-              <span className="text-[11px] sm:text-xs font-bold text-slate-800">Fast Processing</span>
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">{content.trustIndicators[1]?.title || 'Fast Processing'}</span>
             </div>
 
             <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
               <Headphones className="w-4 h-4 text-[#104A96] shrink-0" />
-              <span className="text-[11px] sm:text-xs font-bold text-slate-800">Expert Support</span>
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">{content.trustIndicators[2]?.title || 'Expert Support'}</span>
             </div>
 
             <div className="flex items-center gap-2 p-2 rounded-xl bg-white shadow-xs border border-blue-100">
               <CheckCircle2 className="w-4 h-4 text-[#104A96] shrink-0" />
-              <span className="text-[11px] sm:text-xs font-bold text-slate-800">100% Genuine</span>
+              <span className="text-[11px] sm:text-xs font-bold text-slate-800">{content.trustIndicators[3]?.title || '100% Genuine'}</span>
             </div>
           </div>
 
@@ -236,7 +247,7 @@ export const Hero: React.FC = () => {
               onClick={scrollToServices}
               className="w-full inline-flex items-center justify-center gap-2 bg-[#FF8500] hover:bg-[#e67700] text-white font-bold py-3 px-5 rounded-xl shadow-md text-sm active:scale-98 transition-all"
             >
-              <span>Explore Our Services</span>
+              <span>{content.hero.primaryButtonText}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -246,7 +257,7 @@ export const Hero: React.FC = () => {
               className="w-full inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-[#104A96] font-bold py-3 px-5 rounded-xl border-2 border-[#104A96] text-sm shadow-xs transition-colors"
             >
               <Phone className="w-4 h-4 text-[#104A96]" />
-              <span>Contact Us</span>
+              <span>{content.hero.secondaryButtonText}</span>
             </Link>
           </div>
 

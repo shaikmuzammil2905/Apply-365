@@ -162,6 +162,29 @@ export const Navbar: React.FC = () => {
             </div>
 
             <Link
+              to="/courses"
+              className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                isActive('/courses')
+                  ? 'text-[#104A96] bg-[#F1F7FF]'
+                  : 'text-slate-700 hover:text-[#104A96] hover:bg-slate-50'
+              }`}
+            >
+              Courses
+            </Link>
+
+            <Link
+              to="/courses"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`block px-3 py-2.5 rounded-lg text-base font-semibold ${
+                isActive('/courses')
+                  ? 'text-[#104A96] bg-[#F1F7FF]'
+                  : 'text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              Courses
+            </Link>
+
+            <Link
               to="/documents-required"
               className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 isActive('/documents-required')
@@ -412,6 +435,18 @@ export const Navbar: React.FC = () => {
                 </div>
               )}
             </div>
+
+            <Link
+              to="/courses"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`block px-3 py-2.5 rounded-lg text-base font-semibold ${
+                isActive('/courses')
+                  ? 'text-[#104A96] bg-[#F1F7FF]'
+                  : 'text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              Courses
+            </Link>
 
             <Link
               to="/documents-required"
