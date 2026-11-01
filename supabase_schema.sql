@@ -69,8 +69,9 @@ CREATE TABLE IF NOT EXISTS public.services (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure official_disclaimer exists even if table was created previously
+-- Ensure official_disclaimer and sub_services exist even if table was created previously
 ALTER TABLE public.services ADD COLUMN IF NOT EXISTS official_disclaimer TEXT;
+ALTER TABLE public.services ADD COLUMN IF NOT EXISTS sub_services JSONB DEFAULT '[]'::JSONB;
 
 -- 5. LEADS AND ENQUIRIES TABLE
 CREATE TABLE IF NOT EXISTS public.leads (

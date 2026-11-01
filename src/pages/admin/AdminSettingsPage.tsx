@@ -127,6 +127,8 @@ CREATE TABLE IF NOT EXISTS public.services (
     accent_color TEXT DEFAULT '#104A96',
     badge TEXT DEFAULT 'Popular Service',
     icon_name TEXT DEFAULT 'FileText',
+    official_disclaimer TEXT,
+    sub_services JSONB DEFAULT '[]'::JSONB,
     documents JSONB DEFAULT '[]'::JSONB,
     benefits JSONB DEFAULT '[]'::JSONB,
     process_steps JSONB DEFAULT '[]'::JSONB,

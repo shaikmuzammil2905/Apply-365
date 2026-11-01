@@ -520,3 +520,4 @@ export function generateApplicationSummaryPDF(app: CustomerApplication): jsPDF {
 
   return doc;
 }
+

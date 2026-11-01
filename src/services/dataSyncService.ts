@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import { Course, Lead, WebsiteSettings, WebsiteContent, MediaAsset, ActivityLog } from '../types/admin';
-import { ServiceDetail, ServiceDocument } from '../types/services';
+import { ServiceDetail, ServiceDocument, SubServiceOption } from '../types/services';
 import { servicesData as initialServicesData } from '../data/servicesData';
 import { 
   CustomerApplication, 
@@ -381,6 +381,79 @@ export async function deleteCourse(id: string): Promise<void> {
 // ==========================================
 // 4. SERVICES API (SUPABASE + SYNC)
 // ==========================================
+export function getDefaultSubServices(slug: string): SubServiceOption[] {
+  const s = (slug || '').toLowerCase();
+  if (s.includes('aadhaar') || s.includes('aadhar')) {
+    return [
+      { value: 'address-update', label: 'Address Update / Correction' },
+      { value: 'name-correction', label: 'Name Spelling Correction' },
+      { value: 'dob-update', label: 'Date of Birth (DOB) Update' },
+      { value: 'mobile-linking', label: 'Mobile Number Linking Support' },
+      { value: 'new-enrolment', label: 'New Aadhaar Enrolment Support' },
+    ];
+  }
+  if (s.includes('pan')) {
+    return [
+      { value: 'new-pan', label: 'New PAN Card (Indian Citizen / Form 49A)' },
+      { value: 'pan-correction', label: 'PAN Correction / Update in Name, DOB or Photo' },
+      { value: 'pan-reprint', label: 'Reprint of Damaged / Lost Physical PAN Card' },
+    ];
+  }
+  if (s.includes('voter')) {
+    return [
+      { value: 'new-voter', label: 'New Voter ID Registration (Form 6)' },
+      { value: 'voter-correction', label: 'Correction / Update in Existing Voter Card (Form 8)' },
+      { value: 'voter-shift', label: 'Shifting of Residence / Assembly Constituency' },
+      { value: 'voter-reprint', label: 'Replacement / Duplicate Voter ID (e-EPIC)' },
+    ];
+  }
+  if (s.includes('msme') || s.includes('udyam')) {
+    return [
+      { value: 'new-udyam', label: 'Fresh MSME / Udyam Registration' },
+      { value: 'udyam-update', label: 'Update / Modify Existing Udyam Details' },
+      { value: 'udyam-print', label: 'Retrieve / Print Udyam Certificate' },
+    ];
+  }
+  if (s.includes('labour') || s.includes('labor')) {
+    return [
+      { value: 'new-license', label: 'Fresh Labour Contractor / Establishment License' },
+      { value: 'license-renewal', label: 'Annual Renewal of Labour License' },
+      { value: 'license-amendment', label: 'Amendment in Worker Capacity or Location' },
+    ];
+  }
+  if (s.includes('uan') || s.includes('pf')) {
+    return [
+      { value: 'kyc-update', label: 'Bank / Aadhaar / PAN KYC Linking in UAN' },
+      { value: 'claim-filing', label: 'PF Advance (Form 31) / Full Withdrawal (Form 19 & 10C)' },
+      { value: 'member-transfer', label: 'Transfer of PF from Previous Employer' },
+      { value: 'dob-name-correction', label: 'Joint Declaration for Name / DOB Correction' },
+    ];
+  }
+  if (s.includes('esi')) {
+    return [
+      { value: 'ip-registration', label: 'New Insured Person (Employee) ESI Registration' },
+      { value: 'family-details', label: 'Family / Dependent Member Addition in ESI' },
+      { value: 'dispensary-change', label: 'Change of Dispensary / Hospital Mapping' },
+      { value: 'correct-demographics', label: 'Correction in Insured Person Name / DOB' },
+      { value: 'pehchan-reprint', label: 'Download Updated e-Pehchan Card' },
+    ];
+  }
+  if (s.includes('passport')) {
+    return [
+      { value: 'fresh-normal', label: 'Fresh Passport (Normal Track: 30-45 Days)' },
+      { value: 'fresh-tatkaal', label: 'Fresh Passport (Tatkaal Track: 3-7 Days)' },
+      { value: 'reissue-expiry', label: 'Passport Re-issue / Renewal (Validity Expired / Expiring)' },
+      { value: 'reissue-pages-exhausted', label: 'Passport Re-issue (Pages Exhausted)' },
+      { value: 'reissue-change-details', label: 'Passport Re-issue (Change of Name / Address)' },
+      { value: 'minor-passport', label: 'Minor Passport Application (Under 18 Years)' },
+    ];
+  }
+  return [
+    { value: 'standard-filing', label: 'Standard Service Application' },
+    { value: 'priority-filing', label: 'Priority / Fast-Track Assistance' }
+  ];
+}
+
 export async function getServices(): Promise<ServiceDetail[]> {
   try {
     const { data, error } = await supabase
@@ -398,6 +471,7 @@ export async function getServices(): Promise<ServiceDetail[]> {
         accentColor: item.accent_color || item.accentColor || '#104A96',
         badge: item.badge || 'Popular',
         iconName: item.icon_name || item.iconName || 'FileText',
+        subServices: item.sub_services || item.subServices || getDefaultSubServices(item.slug),
         documents: item.documents || [],
         officialDisclaimer: item.official_disclaimer || item.officialDisclaimer || '',
         benefits: item.benefits || [],
@@ -411,12 +485,19 @@ export async function getServices(): Promise<ServiceDetail[]> {
     console.warn('Supabase fetch services failed, using cache:', err);
   }
 
-  return getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
+  const cached = getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
+  return cached.map(svc => ({
+    ...svc,
+    subServices: svc.subServices && svc.subServices.length > 0 ? svc.subServices : getDefaultSubServices(svc.slug)
+  }));
 }
 
 export function getInitialServiceBySlug(slug: string): ServiceDetail {
   const cached = getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
-  if (!slug) return cached[0] || initialServicesData[0];
+  if (!slug) {
+    const first = cached[0] || initialServicesData[0];
+    return { ...first, subServices: first.subServices || getDefaultSubServices(first.slug) };
+  }
   const raw = slug.toLowerCase().trim();
 
   const normalized = 
@@ -430,10 +511,13 @@ export function getInitialServiceBySlug(slug: string): ServiceDetail {
     raw;
 
   const found = cached.find(s => s.slug === normalized || s.id === normalized || s.slug === raw || s.id === raw);
-  if (found) return found;
+  if (found) {
+    return { ...found, subServices: found.subServices || getDefaultSubServices(found.slug) };
+  }
 
   const partial = cached.find(s => s.slug.includes(normalized) || normalized.includes(s.slug));
-  return partial || cached[0] || initialServicesData[0];
+  const res = partial || cached[0] || initialServicesData[0];
+  return { ...res, subServices: res.subServices || getDefaultSubServices(res.slug) };
 }
 
 export async function getServiceBySlug(slug: string): Promise<ServiceDetail> {
@@ -479,6 +563,7 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
     accent_color: service.accentColor,
     badge: service.badge,
     icon_name: service.iconName,
+    sub_services: service.subServices,
     documents: service.documents,
     benefits: service.benefits,
     process_steps: service.processSteps,
@@ -492,7 +577,12 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
   });
 
   if (primaryError) {
-    const { error: fallbackError } = await supabase.from('services').upsert(payload);
+    // Retry without sub_services in case column is not yet migrated in Supabase
+    const { sub_services, ...strippedPayload } = payload;
+    const { error: fallbackError } = await supabase.from('services').upsert({
+      ...strippedPayload,
+      official_disclaimer: service.officialDisclaimer
+    });
     if (fallbackError) {
       console.error('Supabase service fallback upsert failed:', fallbackError);
       throw new Error(`Supabase error: ${fallbackError.message}`);

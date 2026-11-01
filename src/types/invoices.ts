@@ -57,3 +57,4 @@ export interface CustomerInvoice {
   createdAt: string;
   updatedAt: string;
 }
+

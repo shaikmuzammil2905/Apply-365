@@ -116,7 +116,9 @@ export const ServiceDetailPage: React.FC = () => {
     if (!service) return;
 
     // Default first sub-service option if available
-    const firstOption = config.fields.find(f => f.options && f.options.length > 0)?.options?.[0]?.value || '';
+    const firstOption = (service.subServices && service.subServices.length > 0)
+      ? service.subServices[0].value
+      : config.fields.find(f => f.options && f.options.length > 0)?.options?.[0]?.value || '';
     setSelectedSubService(firstOption);
 
     // Initial form data
@@ -130,7 +132,12 @@ export const ServiceDetailPage: React.FC = () => {
       customerRemarks: '',
     };
     config.fields.forEach((f) => {
-      initial[f.name] = f.options ? f.options[0].value : '';
+      const isServiceSelect = f.name.toLowerCase().includes('service') || f.name === 'serviceType' || f.name === 'passportServiceType';
+      if (isServiceSelect && service.subServices && service.subServices.length > 0) {
+        initial[f.name] = service.subServices[0].value;
+      } else {
+        initial[f.name] = f.options ? f.options[0].value : '';
+      }
     });
     setFormData(initial);
 
@@ -565,6 +572,15 @@ export const ServiceDetailPage: React.FC = () => {
                   const isSpan2 = field.gridSpan === 2;
 
                   if (field.type === 'select') {
+                    const isServiceSelect = 
+                      field.name.toLowerCase().includes('service') || 
+                      field.name === 'serviceType' || 
+                      field.name === 'passportServiceType';
+
+                    const optionsToRender = (isServiceSelect && service.subServices && service.subServices.length > 0)
+                      ? service.subServices.map(s => ({ value: s.value, label: s.label }))
+                      : field.options;
+
                     return (
                       <div key={field.name} className={isSpan2 ? 'sm:col-span-2' : ''}>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
@@ -577,7 +593,7 @@ export const ServiceDetailPage: React.FC = () => {
                           required={field.required}
                           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white text-slate-800"
                         >
-                          {field.options?.map((opt) => (
+                          {optionsToRender?.map((opt) => (
                             <option key={opt.value} value={opt.value}>
                               {opt.label}
                             </option>

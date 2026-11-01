@@ -5,10 +5,13 @@ import {
   recordInvoicePayment, 
   cancelInvoice, 
   getAllApplications, 
-  generateInvoiceNumber 
+  generateInvoiceNumber,
+  getServices,
+  getDefaultSubServices
 } from '../../services/dataSyncService';
 import { CustomerInvoice, InvoiceItem, InvoicePayment } from '../../types/invoices';
 import { CustomerApplication } from '../../types/application';
+import { ServiceDetail } from '../../types/services';
 import { generateInvoicePDF, formatINR } from '../../utils/pdfGenerator';
 import { 
   Receipt, 
@@ -31,12 +34,16 @@ import {
   Clock,
   Sparkles,
   ArrowUpRight,
-  Share2
+  Share2,
+  Briefcase
 } from 'lucide-react';
 
 export const AdminInvoicesPage: React.FC = () => {
   const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
   const [applications, setApplications] = useState<CustomerApplication[]>([]);
+  const [services, setServices] = useState<ServiceDetail[]>([]);
+  const [selectedServiceSlug, setSelectedServiceSlug] = useState('');
+  const [selectedSubServiceValue, setSelectedSubServiceValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -76,12 +83,14 @@ export const AdminInvoicesPage: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [invList, appList] = await Promise.all([
+      const [invList, appList, svcList] = await Promise.all([
         getInvoices(),
-        getAllApplications()
+        getAllApplications(),
+        getServices()
       ]);
       setInvoices(invList);
       setApplications(appList);
+      setServices(svcList);
     } catch (err) {
       console.error('Failed to load invoices:', err);
     } finally {
@@ -95,6 +104,65 @@ export const AdminInvoicesPage: React.FC = () => {
     window.addEventListener('apply365_data_sync', handleSync);
     return () => window.removeEventListener('apply365_data_sync', handleSync);
   }, []);
+
+  // When service is selected directly (e.g. Aadhaar, PAN, Voter ID), auto-fill service name & items
+  const handleServiceSelect = (slug: string) => {
+    setSelectedServiceSlug(slug);
+    setSelectedSubServiceValue('');
+    if (!slug) return;
+    const svc = services.find(s => s.slug === slug || s.id === slug);
+    if (svc) {
+      const subList = (svc.subServices && svc.subServices.length > 0)
+        ? svc.subServices
+        : getDefaultSubServices(svc.slug);
+      const firstSub = subList[0];
+      if (firstSub) {
+        setSelectedSubServiceValue(firstSub.value);
+        setServiceName(`${svc.title} (${firstSub.label})`);
+        setItems([
+          {
+            id: '1',
+            description: `${svc.title} - ${firstSub.label} Application Processing & Verification Assistance`,
+            quantity: 1,
+            unitPrice: 499,
+            total: 499
+          }
+        ]);
+      } else {
+        setServiceName(svc.title);
+        setItems([
+          {
+            id: '1',
+            description: `${svc.title} Application Processing Assistance`,
+            quantity: 1,
+            unitPrice: 499,
+            total: 499
+          }
+        ]);
+      }
+    }
+  };
+
+  const handleSubServiceSelect = (subVal: string) => {
+    setSelectedSubServiceValue(subVal);
+    const svc = services.find(s => s.slug === selectedServiceSlug || s.id === selectedServiceSlug);
+    if (!svc) return;
+    const subList = (svc.subServices && svc.subServices.length > 0)
+      ? svc.subServices
+      : getDefaultSubServices(svc.slug);
+    const sub = subList.find(s => s.value === subVal);
+    const subLabel = sub ? sub.label : subVal;
+    setServiceName(`${svc.title} (${subLabel})`);
+    setItems([
+      {
+        id: '1',
+        description: `${svc.title} - ${subLabel} Application Processing & Verification Assistance`,
+        quantity: 1,
+        unitPrice: 499,
+        total: 499
+      }
+    ]);
+  };
 
   // When application is selected in create modal, auto-fill customer info
   const handleAppSelect = (appId: string) => {
@@ -577,11 +645,65 @@ export const AdminInvoicesPage: React.FC = () => {
                   </div>
                 )}
 
+                {/* Choose Service directly (Aadhaar / PAN / Voter ID etc. requested in image copy 26.png) */}
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-[#104A96]" />
+                      <span>Choose Service (e.g. Aadhaar / PAN / Voter ID / MSME / Courses):</span>
+                    </label>
+                    <span className="text-[11px] text-slate-500">Auto-fills service name and invoice line items</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <select
+                        value={selectedServiceSlug}
+                        onChange={(e) => handleServiceSelect(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                      >
+                        <option value="">-- Choose Service (Aadhaar, PAN, etc.) --</option>
+                        {services.map((svc) => (
+                          <option key={svc.id} value={svc.slug}>
+                            {svc.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedServiceSlug ? (() => {
+                      const currentSvc = services.find(s => s.slug === selectedServiceSlug || s.id === selectedServiceSlug);
+                      const subList = currentSvc?.subServices && currentSvc.subServices.length > 0 
+                        ? currentSvc.subServices 
+                        : getDefaultSubServices(selectedServiceSlug);
+                      return (
+                        <div>
+                          <select
+                            value={selectedSubServiceValue}
+                            onChange={(e) => handleSubServiceSelect(e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                          >
+                            <option value="">-- Choose Sub-Service Option --</option>
+                            {subList.map((sub) => (
+                              <option key={sub.value} value={sub.value}>
+                                {sub.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })() : (
+                      <div className="hidden sm:flex items-center text-xs text-slate-400 italic px-2">
+                        Select a service to choose sub-service options
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Auto-fill from Existing Application Selector */}
                 <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 space-y-1.5">
                   <label className="text-xs font-bold text-[#104A96] flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Auto-Fill from Submitted Customer Application (Optional):</span>
+                    <span>Or Link to Submitted Customer Application (Optional):</span>
                   </label>
                   <select
                     value={selectedAppId}
@@ -963,3 +1085,4 @@ export const AdminInvoicesPage: React.FC = () => {
     </div>
   );
 };
+

@@ -22,6 +22,15 @@ export interface ServiceDocument {
   isReady?: boolean;
 }
 
+export interface SubServiceOption {
+  id?: string;
+  value: string;
+  label: string;
+  description?: string;
+  fees?: number | string;
+  isActive?: boolean;
+}
+
 export interface ServiceDetail {
   id: string;
   slug: string;
@@ -31,6 +40,7 @@ export interface ServiceDetail {
   accentColor: string;
   badge: string;
   iconName: string;
+  subServices?: SubServiceOption[];
   documents: ServiceDocument[];
   officialDisclaimer: string;
   benefits: string[];

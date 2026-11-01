@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getServices, saveService } from '../../services/dataSyncService';
-import { ServiceDetail } from '../../types/services';
+import { getServices, saveService, getDefaultSubServices } from '../../services/dataSyncService';
+import { ServiceDetail, SubServiceOption } from '../../types/services';
 import { 
   Layers, 
   Edit, 
@@ -11,7 +11,12 @@ import {
   FileText, 
   CheckCircle2, 
   HelpCircle,
-  Plus
+  Plus,
+  ArrowUp,
+  ArrowDown,
+  Trash2,
+  ListPlus,
+  RotateCcw
 } from 'lucide-react';
 
 export const AdminServicesPage: React.FC = () => {
@@ -22,6 +27,8 @@ export const AdminServicesPage: React.FC = () => {
 
   // Form State
   const [formData, setFormData] = useState<Partial<ServiceDetail>>({});
+  const [subServices, setSubServices] = useState<SubServiceOption[]>([]);
+  const [newSubServiceLabel, setNewSubServiceLabel] = useState('');
   const [docsText, setDocsText] = useState('');
   const [benefitsText, setBenefitsText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +56,11 @@ export const AdminServicesPage: React.FC = () => {
       fullDescription: '',
       officialDisclaimer: 'Acceptable proof depends on current statutory requirements.',
     });
+    setSubServices([
+      { value: 'standard-filing', label: 'Standard Service Application' },
+      { value: 'priority-filing', label: 'Priority / Fast-Track Assistance' }
+    ]);
+    setNewSubServiceLabel('');
     setDocsText('Identity Proof: Valid government identification card\nAddress Proof: Recent utility bill or residential certificate');
     setBenefitsText('Guaranteed pre-verification of documents\nDirect portal submission assistance\nFast status tracking and support');
     setSaveError('');
@@ -59,11 +71,62 @@ export const AdminServicesPage: React.FC = () => {
   const handleOpenEdit = (svc: ServiceDetail) => {
     setEditingService(svc);
     setFormData(svc);
+    const subs = (svc.subServices && svc.subServices.length > 0)
+      ? svc.subServices
+      : getDefaultSubServices(svc.slug);
+    setSubServices(subs);
+    setNewSubServiceLabel('');
     setDocsText(svc.documents.map(d => `${d.name}: ${d.description || ''}`).join('\n'));
     setBenefitsText(svc.benefits.join('\n'));
     setSaveError('');
     setSaveSuccess('');
     setIsModalOpen(true);
+  };
+
+  const handleAddSubService = () => {
+    const label = newSubServiceLabel.trim();
+    if (!label) return;
+    const value = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const uniqueValue = subServices.some(s => s.value === value)
+      ? `${value}-${Date.now().toString().slice(-4)}`
+      : value;
+
+    setSubServices(prev => [
+      ...prev,
+      { value: uniqueValue, label, isActive: true }
+    ]);
+    setNewSubServiceLabel('');
+  };
+
+  const handleUpdateSubService = (index: number, key: 'label' | 'value', val: string) => {
+    setSubServices(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [key]: val };
+      return next;
+    });
+  };
+
+  const handleDeleteSubService = (index: number) => {
+    setSubServices(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMoveSubService = (index: number, dir: 'up' | 'down') => {
+    if (dir === 'up' && index === 0) return;
+    if (dir === 'down' && index === subServices.length - 1) return;
+    setSubServices(prev => {
+      const next = [...prev];
+      const targetIdx = dir === 'up' ? index - 1 : index + 1;
+      const temp = next[index];
+      next[index] = next[targetIdx];
+      next[targetIdx] = temp;
+      return next;
+    });
+  };
+
+  const handleResetDefaultSubServices = () => {
+    const slug = formData.slug || editingService?.slug || '';
+    const def = getDefaultSubServices(slug);
+    setSubServices(def);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,6 +165,7 @@ export const AdminServicesPage: React.FC = () => {
         shortDescription: formData.shortDescription?.trim() || (editingService ? editingService.shortDescription : ''),
         fullDescription: formData.fullDescription?.trim() || (editingService ? editingService.fullDescription : formData.shortDescription?.trim() || ''),
         officialDisclaimer: formData.officialDisclaimer?.trim() || (editingService ? editingService.officialDisclaimer : 'Acceptable proof depends on current statutory requirements.'),
+        subServices: subServices.length > 0 ? subServices : undefined,
         documents: parsedDocs.length > 0 ? parsedDocs : (editingService ? editingService.documents : [{ name: 'Identity Proof', description: 'Valid government ID card.' }]),
         benefits: parsedBenefits.length > 0 ? parsedBenefits : (editingService ? editingService.benefits : ['Zero error processing', 'Official verification assistance']),
         processSteps: editingService?.processSteps || [
@@ -194,8 +258,18 @@ export const AdminServicesPage: React.FC = () => {
                 {service.shortDescription}
               </p>
 
-              {/* Required Documents count */}
+              {/* Sub-services count & Required Documents count */}
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                <span className="font-medium flex items-center gap-1">
+                  <ListPlus className="w-3.5 h-3.5 text-[#104A96]" />
+                  <span>Sub-Services:</span>
+                </span>
+                <span className="font-bold text-slate-900">
+                  {(service.subServices && service.subServices.length > 0) ? service.subServices.length : getDefaultSubServices(service.slug).length} Options
+                </span>
+              </div>
+
+              <div className="pt-1 flex items-center justify-between text-xs text-slate-600">
                 <span className="font-medium flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5 text-slate-400" />
                   <span>Required Documents:</span>
@@ -324,6 +398,115 @@ export const AdminServicesPage: React.FC = () => {
                     onChange={(e) => setFormData(prev => ({ ...prev, officialDisclaimer: e.target.value }))}
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
                   />
+                </div>
+
+                {/* Sub-Services / Service Application Options (Customizable for each service) */}
+                <div className="space-y-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <ListPlus className="w-4 h-4 text-[#104A96]" />
+                        <span>Application Options & Sub-Services (Customer Dropdown)</span>
+                      </label>
+                      <p className="text-[11px] text-slate-500">
+                        Customize what options customers see under "Service Required *" on the live application form.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleResetDefaultSubServices}
+                      title="Reset to official statutory defaults"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-[#104A96] bg-white border border-slate-200 px-2.5 py-1 rounded-lg transition-colors shadow-2xs self-start sm:self-auto"
+                    >
+                      <RotateCcw className="w-3 h-3 text-slate-500" />
+                      <span>Reset Defaults</span>
+                    </button>
+                  </div>
+
+                  {/* Sub-services list */}
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {subServices.length === 0 ? (
+                      <div className="p-4 bg-white border border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-500">
+                        No sub-service options added yet. Type an option name below and click Add.
+                      </div>
+                    ) : (
+                      subServices.map((sub, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-white p-2 border border-slate-200 rounded-xl shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-400 w-5 text-center shrink-0">{idx + 1}.</span>
+                          
+                          <input
+                            type="text"
+                            value={sub.label}
+                            onChange={(e) => handleUpdateSubService(idx, 'label', e.target.value)}
+                            placeholder="Option Label (e.g. Address Update)"
+                            className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-[#104A96] focus:outline-none"
+                          />
+
+                          <input
+                            type="text"
+                            value={sub.value}
+                            onChange={(e) => handleUpdateSubService(idx, 'value', e.target.value)}
+                            placeholder="option-code"
+                            className="w-24 sm:w-32 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-mono text-slate-500 focus:ring-1 focus:ring-[#104A96] focus:outline-none shrink-0"
+                          />
+
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveSubService(idx, 'up')}
+                              className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20 rounded hover:bg-slate-100"
+                              title="Move Up"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === subServices.length - 1}
+                              onClick={() => handleMoveSubService(idx, 'down')}
+                              className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20 rounded hover:bg-slate-100"
+                              title="Move Down"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSubService(idx)}
+                              className="p-1 text-red-400 hover:text-red-600 rounded hover:bg-red-50"
+                              title="Remove Option"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Add New Sub-Service Input */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={newSubServiceLabel}
+                      onChange={(e) => setNewSubServiceLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSubService();
+                        }
+                      }}
+                      placeholder="Type new option name (e.g. New Enrolment Assistance) and click Add..."
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSubService}
+                      className="px-3 py-1.5 bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Option</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
