@@ -383,3 +383,122 @@ SET title = EXCLUDED.title,
     full_description = EXCLUDED.full_description,
     features = EXCLUDED.features,
     updated_at = NOW();
+
+-- =========================================================================
+-- 11. INVOICES TABLE
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id TEXT PRIMARY KEY,
+    invoice_number TEXT UNIQUE NOT NULL,
+    customer_id TEXT NOT NULL,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT,
+    customer_mobile TEXT NOT NULL,
+    customer_address TEXT,
+    application_id TEXT,
+    service_name TEXT NOT NULL,
+    invoice_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    due_date DATE,
+    items JSONB DEFAULT '[]'::JSONB,
+    subtotal NUMERIC NOT NULL DEFAULT 0,
+    discount NUMERIC NOT NULL DEFAULT 0,
+    tax_rate NUMERIC DEFAULT 0,
+    tax_amount NUMERIC DEFAULT 0,
+    total_amount NUMERIC NOT NULL DEFAULT 0,
+    amount_paid NUMERIC NOT NULL DEFAULT 0,
+    balance_due NUMERIC NOT NULL DEFAULT 0,
+    payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'overdue', 'cancelled', 'refunded')),
+    invoice_status TEXT NOT NULL DEFAULT 'finalized' CHECK (invoice_status IN ('draft', 'finalized', 'cancelled')),
+    payments JSONB DEFAULT '[]'::JSONB,
+    notes TEXT,
+    payment_instructions TEXT,
+    created_by TEXT DEFAULT 'Super Administrator',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. INVOICE PAYMENTS TABLE (AUDIT & TRANSACTION HISTORY)
+CREATE TABLE IF NOT EXISTS public.invoice_payments (
+    id TEXT PRIMARY KEY,
+    invoice_id TEXT NOT NULL,
+    amount NUMERIC NOT NULL,
+    payment_method TEXT NOT NULL,
+    transaction_reference TEXT,
+    payment_date TIMESTAMPTZ DEFAULT NOW(),
+    payment_notes TEXT,
+    recorded_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. APPLICATION STATUS AUDIT & HISTORY TABLE
+CREATE TABLE IF NOT EXISTS public.application_status_history (
+    id TEXT PRIMARY KEY,
+    application_id TEXT NOT NULL,
+    previous_status TEXT,
+    new_status TEXT NOT NULL,
+    customer_message TEXT,
+    internal_note TEXT,
+    expected_completion_date DATE,
+    updated_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. APPLICATION DOCUMENT DELIVERIES TABLE
+CREATE TABLE IF NOT EXISTS public.application_deliveries (
+    id TEXT PRIMARY KEY,
+    application_id TEXT NOT NULL,
+    customer_id TEXT,
+    delivery_channel TEXT NOT NULL CHECK (delivery_channel IN ('email', 'whatsapp', 'portal_notification')),
+    recipient TEXT NOT NULL,
+    document_reference TEXT,
+    delivery_status TEXT NOT NULL DEFAULT 'sent' CHECK (delivery_status IN ('prepared', 'sent', 'delivered', 'failed')),
+    failure_reason TEXT,
+    sent_by TEXT,
+    sent_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. CUSTOMER NOTIFICATIONS TABLE
+CREATE TABLE IF NOT EXISTS public.customer_notifications (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL,
+    application_id TEXT,
+    invoice_id TEXT,
+    notification_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    delivery_channel TEXT DEFAULT 'in_app',
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for lightning fast lookups
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON public.invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_application_id ON public.invoices(application_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_payment_status ON public.invoices(payment_status);
+CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON public.invoice_payments(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_history_application_id ON public.application_status_history(application_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_application_id ON public.application_deliveries(application_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_customer_id ON public.customer_notifications(customer_id);
+
+-- Enable RLS & Universal Policies
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.application_status_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.application_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_notifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anon full access invoices" ON public.invoices;
+DROP POLICY IF EXISTS "Anon full access invoice_payments" ON public.invoice_payments;
+DROP POLICY IF EXISTS "Anon full access application_status_history" ON public.application_status_history;
+DROP POLICY IF EXISTS "Anon full access application_deliveries" ON public.application_deliveries;
+DROP POLICY IF EXISTS "Anon full access customer_notifications" ON public.customer_notifications;
+
+CREATE POLICY "Anon full access invoices" ON public.invoices FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Anon full access invoice_payments" ON public.invoice_payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Anon full access application_status_history" ON public.application_status_history FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Anon full access application_deliveries" ON public.application_deliveries FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Anon full access customer_notifications" ON public.customer_notifications FOR ALL USING (true) WITH CHECK (true);
+
+-- Ensure application status check allows all 13 official lifecycle statuses
+ALTER TABLE public.applications DROP CONSTRAINT IF EXISTS applications_status_check;
+

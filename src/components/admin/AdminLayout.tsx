@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   Database,
   ChevronRight,
-  FileCheck2
+  FileCheck2,
+  Receipt
 } from 'lucide-react';
 
 interface NavItem {
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { name: 'Document Management', path: '/admin/documents', icon: FileCheck2 },
   { name: 'Leads & Enquiries', path: '/admin/leads', icon: Inbox },
   { name: 'Applications', path: '/admin/applications', icon: FileText },
+  { name: 'Invoices & Billing', path: '/admin/invoices', icon: Receipt },
   { name: 'Customers', path: '/admin/customers', icon: Users },
   { name: 'Media Library', path: '/admin/media', icon: Image },
   { name: 'Website Content', path: '/admin/website-content', icon: Edit3 },

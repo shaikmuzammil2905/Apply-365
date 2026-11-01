@@ -5,11 +5,14 @@ import {
   getServices, 
   getLeads, 
   getAllApplications, 
-  getActivityLogs 
+  getActivityLogs,
+  getInvoices
 } from '../../services/dataSyncService';
 import { Course, Lead, ActivityLog } from '../../types/admin';
 import { ServiceDetail } from '../../types/services';
 import { CustomerApplication } from '../../types/application';
+import { CustomerInvoice } from '../../types/invoices';
+import { formatINR } from '../../utils/pdfGenerator';
 import { 
   GraduationCap, 
   Layers, 
@@ -24,7 +27,9 @@ import {
   Settings, 
   History,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  Receipt,
+  CreditCard
 } from 'lucide-react';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -32,24 +37,27 @@ export const AdminDashboardPage: React.FC = () => {
   const [services, setServices] = useState<ServiceDetail[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [applications, setApplications] = useState<CustomerApplication[]>([]);
+  const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [c, s, l, a, lg] = await Promise.all([
+      const [c, s, l, a, lg, invs] = await Promise.all([
         getCourses(),
         getServices(),
         getLeads(),
         getAllApplications(),
-        getActivityLogs()
+        getActivityLogs(),
+        getInvoices()
       ]);
       setCourses(c);
       setServices(s);
       setLeads(l);
       setApplications(a);
       setLogs(lg);
+      setInvoices(invs);
     } catch (err) {
       console.error('Failed to load dashboard data', err);
     } finally {
@@ -69,8 +77,18 @@ export const AdminDashboardPage: React.FC = () => {
   const newLeadsCount = leads.filter(l => l.status === 'new').length;
   const publishedCoursesCount = courses.filter(c => c.isPublished).length;
   const pendingAppsCount = applications.filter(a => 
-    ['submitted', 'under_review', 'under review', 'draft', 'action required'].includes(String(a.status).toLowerCase())
+    ['submitted', 'under_review', 'under review', 'draft', 'action required', 'application_received'].includes(String(a.status).toLowerCase())
   ).length;
+
+  const totalBilled = invoices.reduce((acc, i) => acc + (i.paymentStatus !== 'cancelled' ? i.totalAmount : 0), 0);
+  const totalCollected = invoices.reduce((acc, i) => acc + (i.paymentStatus !== 'cancelled' ? i.amountPaid : 0), 0);
+  const totalOutstanding = invoices.reduce((acc, i) => acc + (i.paymentStatus !== 'cancelled' ? i.balanceDue : 0), 0);
+
+  const appsReceived = applications.filter(a => ['application_received', 'submitted'].includes(String(a.status).toLowerCase())).length;
+  const appsUnderReview = applications.filter(a => ['under_review', 'under review'].includes(String(a.status).toLowerCase())).length;
+  const docsPending = applications.filter(a => String(a.status).toLowerCase() === 'documents_pending').length;
+  const paymentPending = applications.filter(a => String(a.status).toLowerCase() === 'payment_pending').length;
+  const appsCompleted = applications.filter(a => String(a.status).toLowerCase() === 'completed').length;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -187,6 +205,89 @@ export const AdminDashboardPage: React.FC = () => {
           <p className="text-xs font-bold text-slate-500 mt-1">
             Government & Business Services
           </p>
+        </div>
+
+      </div>
+
+      {/* Financial & Lifecycle Status Analytics (Module 7) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        
+        {/* Invoice & Revenue Overview */}
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-[#104A96]" />
+                <span>Customer Invoicing & Revenue</span>
+              </h3>
+              <p className="text-xs text-slate-500">Live summary calculated from actual billing records</p>
+            </div>
+            <Link
+              to="/admin/invoices"
+              className="text-xs font-bold text-[#104A96] hover:underline flex items-center gap-1"
+            >
+              <span>Manage Invoices</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5 font-mono text-center">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-[10px] text-slate-400 font-sans font-bold uppercase block">Total Invoices</span>
+              <span className="text-lg font-black text-slate-900">{invoices.length}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+              <span className="text-[10px] text-emerald-800 font-sans font-bold uppercase block">Collected</span>
+              <span className="text-sm font-black text-emerald-700">{formatINR(totalCollected)}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+              <span className="text-[10px] text-amber-800 font-sans font-bold uppercase block">Outstanding</span>
+              <span className="text-sm font-black text-amber-700">{formatINR(totalOutstanding)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Application Lifecycle Breakdown */}
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#104A96]" />
+                <span>Application Lifecycle Distribution</span>
+              </h3>
+              <p className="text-xs text-slate-500">Citizen submissions categorized across real-time stages</p>
+            </div>
+            <Link
+              to="/admin/applications"
+              className="text-xs font-bold text-[#104A96] hover:underline flex items-center gap-1"
+            >
+              <span>View Applications</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-5 gap-2 text-center text-xs">
+            <div className="p-2 rounded-xl bg-blue-50 border border-blue-100">
+              <span className="text-xs font-black text-[#104A96] block">{appsReceived}</span>
+              <span className="text-[10px] text-blue-700 font-bold leading-tight block">Received</span>
+            </div>
+            <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-100">
+              <span className="text-xs font-black text-indigo-800 block">{appsUnderReview}</span>
+              <span className="text-[10px] text-indigo-700 font-bold leading-tight block">Under Review</span>
+            </div>
+            <div className="p-2 rounded-xl bg-amber-50 border border-amber-100">
+              <span className="text-xs font-black text-amber-800 block">{docsPending}</span>
+              <span className="text-[10px] text-amber-700 font-bold leading-tight block">Docs Pending</span>
+            </div>
+            <div className="p-2 rounded-xl bg-orange-50 border border-orange-100">
+              <span className="text-xs font-black text-orange-800 block">{paymentPending}</span>
+              <span className="text-[10px] text-orange-700 font-bold leading-tight block">Pay Pending</span>
+            </div>
+            <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100">
+              <span className="text-xs font-black text-emerald-800 block">{appsCompleted}</span>
+              <span className="text-[10px] text-emerald-700 font-bold leading-tight block">Completed</span>
+            </div>
+          </div>
         </div>
 
       </div>

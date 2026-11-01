@@ -2,7 +2,19 @@ import { supabase } from './supabaseClient';
 import { Course, Lead, WebsiteSettings, WebsiteContent, MediaAsset, ActivityLog } from '../types/admin';
 import { ServiceDetail, ServiceDocument } from '../types/services';
 import { servicesData as initialServicesData } from '../data/servicesData';
-import { CustomerApplication } from '../types/application';
+import { 
+  CustomerApplication, 
+  ApplicationStatusHistoryItem, 
+  ApplicationDeliveryRecord, 
+  CustomerNotification 
+} from '../types/application';
+import { 
+  CustomerInvoice, 
+  InvoicePayment, 
+  InvoicePaymentStatus, 
+  InvoiceStatus, 
+  InvoiceItem 
+} from '../types/invoices';
 
 // Local Storage Keys for Instant Cache & Fallback
 const STORAGE_PREFIX = 'apply365_db_';
@@ -10,6 +22,10 @@ const COURSES_KEY = `${STORAGE_PREFIX}courses_v1`;
 const SERVICES_KEY = `${STORAGE_PREFIX}services_v1`;
 const LEADS_KEY = `${STORAGE_PREFIX}leads_v1`;
 const APPLICATIONS_KEY = `${STORAGE_PREFIX}applications_v1`;
+const INVOICES_KEY = `${STORAGE_PREFIX}invoices_v1`;
+const STATUS_HISTORY_KEY = `${STORAGE_PREFIX}status_history_v1`;
+const DELIVERIES_KEY = `${STORAGE_PREFIX}deliveries_v1`;
+const NOTIFICATIONS_KEY = `${STORAGE_PREFIX}notifications_v1`;
 const CONTENT_KEY = `${STORAGE_PREFIX}content_v1`;
 const SETTINGS_KEY = `${STORAGE_PREFIX}settings_v1`;
 const MEDIA_KEY = `${STORAGE_PREFIX}media_v1`;
@@ -730,6 +746,616 @@ export async function updateApplicationStatus(id: string, status: CustomerApplic
     await logActivity('Application Updated', 'application', id, `Application ${id} status set to ${status}`);
     notifyDataChange('applications', app);
   }
+}
+
+// ==========================================
+// 6B. STATUS HISTORY & LIFECYCLE MANAGEMENT API
+// ==========================================
+export async function getApplicationStatusHistory(applicationId: string): Promise<ApplicationStatusHistoryItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('application_status_history')
+      .select('*')
+      .eq('application_id', applicationId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      const history: ApplicationStatusHistoryItem[] = data.map((item: any) => ({
+        id: item.id,
+        applicationId: item.application_id,
+        previousStatus: item.previous_status,
+        newStatus: item.new_status,
+        customerMessage: item.customer_message,
+        internalNote: item.internal_note,
+        expectedCompletionDate: item.expected_completion_date,
+        updatedBy: item.updated_by || 'Super Administrator',
+        createdAt: item.created_at
+      }));
+      return history;
+    }
+  } catch (err) {
+    console.warn('Supabase fetch status history failed, using cache:', err);
+  }
+
+  const all = getStored<ApplicationStatusHistoryItem[]>(STATUS_HISTORY_KEY, []);
+  return all.filter(h => h.applicationId === applicationId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function updateApplicationWithHistory(
+  id: string,
+  newStatus: string,
+  customerMessage: string,
+  internalNote?: string,
+  expectedDate?: string,
+  updatedBy: string = 'Super Administrator'
+): Promise<CustomerApplication> {
+  const all = getStored<CustomerApplication[]>(APPLICATIONS_KEY, []);
+  const app = all.find(a => a.id === id);
+  if (!app) {
+    throw new Error(`Application ${id} not found`);
+  }
+
+  const prevStatus = app.status;
+  app.status = newStatus as any;
+  app.updatedAt = new Date().toISOString();
+  setStored(APPLICATIONS_KEY, all);
+
+  // 1. Update Supabase Application
+  try {
+    await supabase.from('applications').update({
+      status: newStatus,
+      updated_at: app.updatedAt
+    }).eq('id', id);
+  } catch (err) {
+    console.warn('Supabase app status update failed:', err);
+  }
+
+  // 2. Insert Status History Record
+  const historyItem: ApplicationStatusHistoryItem = {
+    id: `hist_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    applicationId: id,
+    previousStatus: prevStatus,
+    newStatus,
+    customerMessage: customerMessage || `Application status changed to ${newStatus.replace(/_/g, ' ')}.`,
+    internalNote,
+    expectedCompletionDate: expectedDate,
+    updatedBy,
+    createdAt: new Date().toISOString()
+  };
+
+  const allHistory = getStored<ApplicationStatusHistoryItem[]>(STATUS_HISTORY_KEY, []);
+  allHistory.unshift(historyItem);
+  setStored(STATUS_HISTORY_KEY, allHistory);
+
+  try {
+    await supabase.from('application_status_history').insert({
+      id: historyItem.id,
+      application_id: historyItem.applicationId,
+      previous_status: historyItem.previousStatus,
+      new_status: historyItem.newStatus,
+      customer_message: historyItem.customerMessage,
+      internal_note: historyItem.internalNote,
+      expected_completion_date: historyItem.expectedCompletionDate,
+      updated_by: historyItem.updatedBy,
+      created_at: historyItem.createdAt
+    });
+  } catch (err) {
+    console.warn('Supabase insert status history failed:', err);
+  }
+
+  // 3. Create Customer Notification
+  if (app.customerId) {
+    await createNotification({
+      customerId: app.customerId,
+      applicationId: app.id,
+      notificationType: 'status_update',
+      title: `${app.serviceTitle} Status Updated: ${newStatus.replace(/_/g, ' ').toUpperCase()}`,
+      message: customerMessage || `Your application status has been updated to ${newStatus.replace(/_/g, ' ')}.`,
+      deliveryChannel: 'in_app'
+    });
+  }
+
+  await logActivity(
+    'Application Status Changed',
+    'application',
+    id,
+    `Admin changed ${id} status from ${prevStatus} to ${newStatus}. Note: ${internalNote || 'None'}`
+  );
+
+  notifyDataChange('applications', app);
+  notifyDataChange('status_history', historyItem);
+
+  return app;
+}
+
+// ==========================================
+// 6C. APPLICATION DOCUMENT DELIVERY API
+// ==========================================
+export async function getApplicationDeliveries(applicationId: string): Promise<ApplicationDeliveryRecord[]> {
+  try {
+    const { data, error } = await supabase
+      .from('application_deliveries')
+      .select('*')
+      .eq('application_id', applicationId)
+      .order('sent_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      const deliveries: ApplicationDeliveryRecord[] = data.map((item: any) => ({
+        id: item.id,
+        applicationId: item.application_id,
+        customerId: item.customer_id,
+        deliveryChannel: item.delivery_channel,
+        recipient: item.recipient,
+        documentReference: item.document_reference,
+        deliveryStatus: item.delivery_status,
+        failureReason: item.failure_reason,
+        sentBy: item.sent_by,
+        sentAt: item.sent_at
+      }));
+      return deliveries;
+    }
+  } catch (err) {
+    console.warn('Supabase fetch deliveries failed, using cache:', err);
+  }
+
+  const all = getStored<ApplicationDeliveryRecord[]>(DELIVERIES_KEY, []);
+  return all.filter(d => d.applicationId === applicationId).sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+}
+
+export async function sendApplicationSoftCopy(
+  applicationId: string,
+  channel: 'email' | 'whatsapp' | 'portal_notification',
+  recipient: string,
+  sentBy: string = 'Super Administrator'
+): Promise<ApplicationDeliveryRecord> {
+  const allApps = getStored<CustomerApplication[]>(APPLICATIONS_KEY, []);
+  const app = allApps.find(a => a.id === applicationId);
+
+  const delivery: ApplicationDeliveryRecord = {
+    id: `deliv_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    applicationId,
+    customerId: app?.customerId || 'customer',
+    deliveryChannel: channel,
+    recipient,
+    documentReference: `APP365-DOSSIER-${applicationId}.pdf`,
+    deliveryStatus: 'sent',
+    sentBy,
+    sentAt: new Date().toISOString()
+  };
+
+  const allDeliveries = getStored<ApplicationDeliveryRecord[]>(DELIVERIES_KEY, []);
+  allDeliveries.unshift(delivery);
+  setStored(DELIVERIES_KEY, allDeliveries);
+
+  try {
+    await supabase.from('application_deliveries').insert({
+      id: delivery.id,
+      application_id: delivery.applicationId,
+      customer_id: delivery.customerId,
+      delivery_channel: delivery.deliveryChannel,
+      recipient: delivery.recipient,
+      document_reference: delivery.documentReference,
+      delivery_status: delivery.deliveryStatus,
+      sent_by: delivery.sentBy,
+      sent_at: delivery.sentAt
+    });
+  } catch (err) {
+    console.warn('Supabase insert delivery failed:', err);
+  }
+
+  // Also notify in customer portal
+  if (app?.customerId) {
+    await createNotification({
+      customerId: app.customerId,
+      applicationId: app.id,
+      notificationType: 'document_delivery',
+      title: `Official Application Soft Copy Generated (${channel.toUpperCase()})`,
+      message: `Your verified ${app.serviceTitle} soft copy is ready and dispatched to ${recipient}.`,
+      deliveryChannel: channel === 'portal_notification' ? 'in_app' : channel
+    });
+  }
+
+  await logActivity(
+    'Application Soft Copy Dispatched',
+    'application',
+    applicationId,
+    `Admin dispatched application copy to ${recipient} via ${channel.toUpperCase()}`
+  );
+
+  notifyDataChange('deliveries', delivery);
+  return delivery;
+}
+
+// ==========================================
+// 6D. INVOICE MANAGEMENT & BILLING API
+// ==========================================
+export async function getInvoices(): Promise<CustomerInvoice[]> {
+  try {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      const invoices: CustomerInvoice[] = data.map((item: any) => ({
+        id: item.id,
+        invoiceNumber: item.invoice_number,
+        customerId: item.customer_id,
+        customerName: item.customer_name,
+        customerEmail: item.customer_email || '',
+        customerMobile: item.customer_mobile,
+        customerAddress: item.customer_address,
+        applicationId: item.application_id,
+        serviceName: item.service_name,
+        invoiceDate: item.invoice_date || item.created_at,
+        dueDate: item.due_date,
+        items: item.items || [],
+        subtotal: Number(item.subtotal || 0),
+        discount: Number(item.discount || 0),
+        taxRate: Number(item.tax_rate || 0),
+        taxAmount: Number(item.tax_amount || 0),
+        totalAmount: Number(item.total_amount || 0),
+        amountPaid: Number(item.amount_paid || 0),
+        balanceDue: Number(item.balance_due || 0),
+        paymentStatus: item.payment_status || 'unpaid',
+        invoiceStatus: item.invoice_status || 'draft',
+        payments: item.payments || [],
+        notes: item.notes,
+        paymentInstructions: item.payment_instructions,
+        createdBy: item.created_by,
+        createdAt: item.created_at || new Date().toISOString(),
+        updatedAt: item.updated_at || new Date().toISOString()
+      }));
+      setStored(INVOICES_KEY, invoices);
+      return invoices;
+    }
+  } catch (err) {
+    console.warn('Supabase fetch invoices failed, using local cache:', err);
+  }
+
+  return getStored<CustomerInvoice[]>(INVOICES_KEY, []);
+}
+
+export async function getCustomerInvoices(customerId: string): Promise<CustomerInvoice[]> {
+  const all = await getInvoices();
+  if (!customerId) return all;
+  return all.filter(inv => inv.customerId === customerId);
+}
+
+export async function generateInvoiceNumber(): Promise<string> {
+  const year = new Date().getFullYear();
+  const all = await getInvoices();
+  const yearInvoices = all.filter(i => i.invoiceNumber && i.invoiceNumber.startsWith(`APP-INV-${year}`));
+  
+  let maxSeq = 0;
+  yearInvoices.forEach(i => {
+    const parts = i.invoiceNumber.split('-');
+    const seq = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(seq) && seq > maxSeq) {
+      maxSeq = seq;
+    }
+  });
+
+  const nextSeq = String(maxSeq + 1).padStart(4, '0');
+  return `APP-INV-${year}-${nextSeq}`;
+}
+
+export async function createInvoice(data: Partial<CustomerInvoice>): Promise<CustomerInvoice> {
+  const invoiceNumber = data.invoiceNumber || (await generateInvoiceNumber());
+  const now = new Date().toISOString();
+  const subtotal = Number(data.subtotal || 0);
+  const discount = Number(data.discount || 0);
+  const taxRate = Number(data.taxRate || 0);
+  const taxAmount = Number(((subtotal - discount) * (taxRate / 100)).toFixed(2));
+  const totalAmount = Number((subtotal - discount + taxAmount).toFixed(2));
+  const amountPaid = Number(data.amountPaid || 0);
+  const balanceDue = Math.max(0, Number((totalAmount - amountPaid).toFixed(2)));
+
+  let paymentStatus: InvoicePaymentStatus = 'unpaid';
+  if (amountPaid >= totalAmount && totalAmount > 0) {
+    paymentStatus = 'paid';
+  } else if (amountPaid > 0) {
+    paymentStatus = 'partially_paid';
+  }
+
+  const newInvoice: CustomerInvoice = {
+    id: data.id || `inv_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    invoiceNumber,
+    customerId: data.customerId || `cust_${Date.now()}`,
+    customerName: data.customerName || 'Valued Customer',
+    customerEmail: data.customerEmail || '',
+    customerMobile: data.customerMobile || '',
+    customerAddress: data.customerAddress || '',
+    applicationId: data.applicationId || undefined,
+    serviceName: data.serviceName || 'Statutory Filing Service',
+    invoiceDate: data.invoiceDate || now.slice(0, 10),
+    dueDate: data.dueDate || '',
+    items: data.items || [
+      {
+        id: `item-1`,
+        description: `${data.serviceName || 'Statutory Filing'} Facilitation and Filing Charges`,
+        quantity: 1,
+        unitPrice: subtotal || totalAmount,
+        total: subtotal || totalAmount
+      }
+    ],
+    subtotal,
+    discount,
+    taxRate,
+    taxAmount,
+    totalAmount,
+    amountPaid,
+    balanceDue,
+    paymentStatus,
+    invoiceStatus: data.invoiceStatus || 'finalized',
+    payments: data.payments || [],
+    notes: data.notes || '',
+    paymentInstructions: data.paymentInstructions || 'Please transfer to UPI: apply365@icici with invoice number in remarks.',
+    createdBy: data.createdBy || 'Super Administrator',
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const all = getStored<CustomerInvoice[]>(INVOICES_KEY, []);
+  all.unshift(newInvoice);
+  setStored(INVOICES_KEY, all);
+
+  try {
+    await supabase.from('invoices').insert({
+      id: newInvoice.id,
+      invoice_number: newInvoice.invoiceNumber,
+      customer_id: newInvoice.customerId,
+      customer_name: newInvoice.customerName,
+      customer_email: newInvoice.customerEmail,
+      customer_mobile: newInvoice.customerMobile,
+      customer_address: newInvoice.customerAddress,
+      application_id: newInvoice.applicationId,
+      service_name: newInvoice.serviceName,
+      invoice_date: newInvoice.invoiceDate,
+      due_date: newInvoice.dueDate,
+      items: newInvoice.items,
+      subtotal: newInvoice.subtotal,
+      discount: newInvoice.discount,
+      tax_rate: newInvoice.taxRate,
+      tax_amount: newInvoice.taxAmount,
+      total_amount: newInvoice.totalAmount,
+      amount_paid: newInvoice.amountPaid,
+      balance_due: newInvoice.balanceDue,
+      payment_status: newInvoice.paymentStatus,
+      invoice_status: newInvoice.invoiceStatus,
+      payments: newInvoice.payments,
+      notes: newInvoice.notes,
+      payment_instructions: newInvoice.paymentInstructions,
+      created_by: newInvoice.createdBy,
+      created_at: newInvoice.createdAt,
+      updated_at: newInvoice.updatedAt
+    });
+  } catch (err) {
+    console.warn('Supabase invoice insert failed:', err);
+  }
+
+  // Send customer portal notification
+  if (newInvoice.customerId) {
+    await createNotification({
+      customerId: newInvoice.customerId,
+      invoiceId: newInvoice.id,
+      applicationId: newInvoice.applicationId,
+      notificationType: 'invoice_created',
+      title: `Invoice Generated: ${newInvoice.invoiceNumber}`,
+      message: `Tax invoice of ₹${newInvoice.totalAmount.toLocaleString('en-IN')} has been generated for ${newInvoice.serviceName}.`,
+      deliveryChannel: 'in_app'
+    });
+  }
+
+  await logActivity(
+    'Invoice Created',
+    'invoice',
+    newInvoice.id,
+    `Admin created invoice ${newInvoice.invoiceNumber} for ${newInvoice.customerName} (₹${newInvoice.totalAmount})`
+  );
+
+  notifyDataChange('invoices', newInvoice);
+  return newInvoice;
+}
+
+export async function recordInvoicePayment(
+  invoiceId: string,
+  paymentData: Omit<InvoicePayment, 'id' | 'createdAt'>
+): Promise<CustomerInvoice> {
+  const all = getStored<CustomerInvoice[]>(INVOICES_KEY, []);
+  const invoice = all.find(i => i.id === invoiceId);
+  if (!invoice) throw new Error(`Invoice ${invoiceId} not found`);
+
+  const paymentRecord: InvoicePayment = {
+    id: `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    invoiceId,
+    amount: Number(paymentData.amount || 0),
+    paymentMethod: paymentData.paymentMethod || 'UPI',
+    transactionReference: paymentData.transactionReference || '',
+    paymentDate: paymentData.paymentDate || new Date().toISOString(),
+    paymentNotes: paymentData.paymentNotes || '',
+    recordedBy: paymentData.recordedBy || 'Super Administrator',
+    createdAt: new Date().toISOString()
+  };
+
+  invoice.payments = [...(invoice.payments || []), paymentRecord];
+  invoice.amountPaid = Number((invoice.payments.reduce((acc, p) => acc + Number(p.amount), 0)).toFixed(2));
+  invoice.balanceDue = Math.max(0, Number((invoice.totalAmount - invoice.amountPaid).toFixed(2)));
+
+  if (invoice.balanceDue <= 0 && invoice.totalAmount > 0) {
+    invoice.paymentStatus = 'paid';
+  } else if (invoice.amountPaid > 0) {
+    invoice.paymentStatus = 'partially_paid';
+  } else {
+    invoice.paymentStatus = 'unpaid';
+  }
+
+  invoice.updatedAt = new Date().toISOString();
+  setStored(INVOICES_KEY, all);
+
+  try {
+    await supabase.from('invoices').update({
+      amount_paid: invoice.amountPaid,
+      balance_due: invoice.balanceDue,
+      payment_status: invoice.paymentStatus,
+      payments: invoice.payments,
+      updated_at: invoice.updatedAt
+    }).eq('id', invoiceId);
+
+    await supabase.from('invoice_payments').insert({
+      id: paymentRecord.id,
+      invoice_id: paymentRecord.invoiceId,
+      amount: paymentRecord.amount,
+      payment_method: paymentRecord.paymentMethod,
+      transaction_reference: paymentRecord.transactionReference,
+      payment_date: paymentRecord.paymentDate,
+      payment_notes: paymentRecord.paymentNotes,
+      recorded_by: paymentRecord.recordedBy,
+      created_at: paymentRecord.createdAt
+    });
+  } catch (err) {
+    console.warn('Supabase payment record sync failed:', err);
+  }
+
+  // Notify customer
+  if (invoice.customerId) {
+    await createNotification({
+      customerId: invoice.customerId,
+      invoiceId: invoice.id,
+      applicationId: invoice.applicationId,
+      notificationType: 'payment_recorded',
+      title: `Payment Received: ₹${paymentRecord.amount.toLocaleString('en-IN')}`,
+      message: `Confirmed payment of ₹${paymentRecord.amount.toLocaleString('en-IN')} for invoice ${invoice.invoiceNumber}. Remaining balance: ₹${invoice.balanceDue.toLocaleString('en-IN')}.`,
+      deliveryChannel: 'in_app'
+    });
+  }
+
+  await logActivity(
+    'Payment Recorded',
+    'invoice',
+    invoice.id,
+    `Admin recorded payment ₹${paymentRecord.amount} for ${invoice.invoiceNumber}. Balance: ₹${invoice.balanceDue}`
+  );
+
+  notifyDataChange('invoices', invoice);
+  return invoice;
+}
+
+export async function cancelInvoice(invoiceId: string, reason?: string): Promise<CustomerInvoice> {
+  const all = getStored<CustomerInvoice[]>(INVOICES_KEY, []);
+  const invoice = all.find(i => i.id === invoiceId);
+  if (!invoice) throw new Error(`Invoice ${invoiceId} not found`);
+
+  invoice.paymentStatus = 'cancelled';
+  invoice.invoiceStatus = 'cancelled';
+  invoice.notes = invoice.notes ? `${invoice.notes}\n[Cancelled]: ${reason || 'Admin cancelled'}` : `[Cancelled]: ${reason || 'Admin cancelled'}`;
+  invoice.updatedAt = new Date().toISOString();
+  setStored(INVOICES_KEY, all);
+
+  try {
+    await supabase.from('invoices').update({
+      payment_status: 'cancelled',
+      invoice_status: 'cancelled',
+      notes: invoice.notes,
+      updated_at: invoice.updatedAt
+    }).eq('id', invoiceId);
+  } catch (err) {
+    console.warn('Supabase invoice cancel failed:', err);
+  }
+
+  await logActivity(
+    'Invoice Cancelled',
+    'invoice',
+    invoice.id,
+    `Admin cancelled invoice ${invoice.invoiceNumber}. Reason: ${reason || 'None'}`
+  );
+
+  notifyDataChange('invoices', invoice);
+  return invoice;
+}
+
+// ==========================================
+// 6E. CUSTOMER NOTIFICATIONS API
+// ==========================================
+export async function getCustomerNotifications(customerId: string): Promise<CustomerNotification[]> {
+  try {
+    const { data, error } = await supabase
+      .from('customer_notifications')
+      .select('*')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      const notifs: CustomerNotification[] = data.map((item: any) => ({
+        id: item.id,
+        customerId: item.customer_id,
+        applicationId: item.application_id,
+        invoiceId: item.invoice_id,
+        notificationType: item.notification_type,
+        title: item.title,
+        message: item.message,
+        deliveryChannel: item.delivery_channel || 'in_app',
+        isRead: item.is_read || false,
+        createdAt: item.created_at
+      }));
+      return notifs;
+    }
+  } catch (err) {
+    console.warn('Supabase fetch notifications failed, using cache:', err);
+  }
+
+  const all = getStored<CustomerNotification[]>(NOTIFICATIONS_KEY, []);
+  return all.filter(n => n.customerId === customerId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function createNotification(data: Omit<CustomerNotification, 'id' | 'createdAt' | 'isRead'>): Promise<CustomerNotification> {
+  const notif: CustomerNotification = {
+    id: `notif_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    ...data,
+    isRead: false,
+    createdAt: new Date().toISOString()
+  };
+
+  const all = getStored<CustomerNotification[]>(NOTIFICATIONS_KEY, []);
+  all.unshift(notif);
+  setStored(NOTIFICATIONS_KEY, all);
+
+  try {
+    await supabase.from('customer_notifications').insert({
+      id: notif.id,
+      customer_id: notif.customerId,
+      application_id: notif.applicationId,
+      invoice_id: notif.invoiceId,
+      notification_type: notif.notificationType,
+      title: notif.title,
+      message: notif.message,
+      delivery_channel: notif.deliveryChannel,
+      is_read: notif.isRead,
+      created_at: notif.createdAt
+    });
+  } catch (err) {
+    console.warn('Supabase insert notification failed:', err);
+  }
+
+  notifyDataChange('notifications', notif);
+  return notif;
+}
+
+export async function markNotificationAsRead(id: string): Promise<void> {
+  const all = getStored<CustomerNotification[]>(NOTIFICATIONS_KEY, []);
+  const n = all.find(item => item.id === id);
+  if (n) {
+    n.isRead = true;
+    setStored(NOTIFICATIONS_KEY, all);
+  }
+
+  try {
+    await supabase.from('customer_notifications').update({ is_read: true }).eq('id', id);
+  } catch (err) {
+    console.warn('Supabase mark notification read failed:', err);
+  }
+
+  notifyDataChange('notifications');
 }
 
 // ==========================================

@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getCustomerApplications } from '../../services/dbService';
-import { CustomerApplication, ApplicationDocument } from '../../types/application';
+import { getCustomerInvoices, getCustomerNotifications, markNotificationAsRead } from '../../services/dataSyncService';
+import { CustomerApplication, ApplicationDocument, CustomerNotification } from '../../types/application';
+import { CustomerInvoice } from '../../types/invoices';
 import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
+import { generateInvoicePDF, generateApplicationSummaryPDF, formatINR } from '../../utils/pdfGenerator';
 import { 
   User, 
   Fingerprint, 
@@ -29,15 +32,23 @@ import {
   Mail,
   MapPin,
   Save,
-  Check
+  Check,
+  Receipt,
+  Download,
+  Bell,
+  Send,
+  HelpCircle,
+  Copy
 } from 'lucide-react';
 
 export const CustomerDashboardPage: React.FC = () => {
   const { currentUser, logout, updateProfile } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'documents' | 'profile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'invoices' | 'documents' | 'profile'>('overview');
   const [applications, setApplications] = useState<CustomerApplication[]>([]);
+  const [invoices, setInvoices] = useState<CustomerInvoice[]>([]);
+  const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [loadingApps, setLoadingApps] = useState(true);
   const [previewDoc, setPreviewDoc] = useState<ApplicationDocument | null>(null);
 
@@ -50,22 +61,31 @@ export const CustomerDashboardPage: React.FC = () => {
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  // Load applications scoped strictly to this customer
-  const loadApps = async () => {
+  // Load applications & invoices scoped strictly to this customer
+  const loadCustomerData = async () => {
     if (!currentUser) return;
     setLoadingApps(true);
     try {
-      const data = await getCustomerApplications(currentUser.id);
-      setApplications(data);
+      const [appsData, invsData, notifsData] = await Promise.all([
+        getCustomerApplications(currentUser.id),
+        getCustomerInvoices(currentUser.id),
+        getCustomerNotifications(currentUser.id)
+      ]);
+      setApplications(appsData);
+      setInvoices(invsData);
+      setNotifications(notifsData);
     } catch (e) {
-      console.error('Failed to load customer applications:', e);
+      console.error('Failed to load customer data:', e);
     } finally {
       setLoadingApps(false);
     }
   };
 
   useEffect(() => {
-    loadApps();
+    loadCustomerData();
+    const handleSync = () => loadCustomerData();
+    window.addEventListener('apply365_data_sync', handleSync);
+    return () => window.removeEventListener('apply365_data_sync', handleSync);
   }, [currentUser]);
 
   const handleLogout = () => {
@@ -91,11 +111,21 @@ export const CustomerDashboardPage: React.FC = () => {
     }
   };
 
+  const handleDownloadAppPDF = (app: CustomerApplication) => {
+    const doc = generateApplicationSummaryPDF(app);
+    doc.save(`Apply365-${app.id}-SoftCopy.pdf`);
+  };
+
+  const handleDownloadInvoicePDF = (inv: CustomerInvoice) => {
+    const doc = generateInvoicePDF(inv);
+    doc.save(`${inv.invoiceNumber}.pdf`);
+  };
+
   // Compile all uploaded documents across applications
   const allDocuments: { doc: ApplicationDocument; appId: string; appTitle: string }[] = [];
   applications.forEach((app) => {
     app.documents.forEach((d) => {
-      if (d.status === 'uploaded') {
+      if (d.status === 'uploaded' || d.fileUrl) {
         allDocuments.push({
           doc: d,
           appId: app.id,
@@ -105,505 +135,621 @@ export const CustomerDashboardPage: React.FC = () => {
     });
   });
 
-  const underReviewCount = applications.filter((a) => a.status === 'Submitted' || a.status === 'Under Review').length;
-  const completedCount = applications.filter((a) => a.status === 'Completed').length;
-  const draftCount = applications.filter((a) => a.status === 'Draft').length;
+  const underReviewCount = applications.filter((a) => 
+    ['submitted', 'under_review', 'under review', 'submitted_to_authority', 'processing'].includes(String(a.status).toLowerCase())
+  ).length;
+  const completedCount = applications.filter((a) => String(a.status).toLowerCase() === 'completed').length;
+  const outstandingInvoiceCount = invoices.filter((i) => i.paymentStatus !== 'paid' && i.paymentStatus !== 'cancelled').length;
+  const totalBalanceDue = invoices.reduce((acc, i) => acc + (i.paymentStatus !== 'cancelled' ? i.balanceDue : 0), 0);
 
   return (
-    <div className="min-h-screen py-8 sm:py-12 px-4 sm:px-6 lg:px-8 bg-[#FAFBFD]">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* ========================================================================= */}
-        {/* 1. WELCOME CUSTOMER HEADER                                                */}
-        {/* ========================================================================= */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div className="min-h-screen bg-[#F7F9FC] py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* Dashboard Header Bar */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#104A96] to-[#07366F] text-white flex items-center justify-center font-bold text-2xl shadow-md shrink-0">
+            <div className="w-14 h-14 rounded-2xl bg-[#104A96] text-white flex items-center justify-center font-bold text-xl shadow-md">
               {currentUser?.name?.charAt(0).toUpperCase() || 'C'}
             </div>
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-50 text-[#104A96] text-xs font-bold tracking-wide uppercase mb-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#104A96]" />
-                <span>Verified Customer Session</span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  Welcome back, {currentUser?.name}!
+                </h2>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase tracking-wide">
+                  Verified Account
+                </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Welcome, {currentUser?.name}!
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5 flex flex-wrap items-center gap-3">
-                <span>Mobile: <strong className="text-slate-800">{currentUser?.mobile}</strong></span>
-                <span>•</span>
-                <span>Email: <strong className="text-slate-800">{currentUser?.email}</strong></span>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                Manage your statutory applications, official soft copies, tax invoices, and verification status.
               </p>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <Link
-              to="/apply/aadhaar"
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-xs sm:text-sm py-3 px-5 rounded-xl shadow-md hover:shadow-lg transition-all"
+              to="/services"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold transition-all shadow-md active:scale-95"
             >
-              <Fingerprint className="w-4 h-4" />
-              <span>Apply for Aadhaar</span>
+              <PlusCircle className="w-4 h-4" />
+              <span>Apply for New Service</span>
             </Link>
 
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-red-50 hover:text-red-700 text-slate-700 font-bold text-xs sm:text-sm py-3 px-4 rounded-xl transition-colors border border-slate-200"
-              title="Logout from customer portal"
+              className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5"
             >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
+              <LogOut className="w-4 h-4 text-slate-400" />
+              <span>Sign Out</span>
             </button>
           </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* 2. STATS & APPLICATION STATUS OVERVIEW                                    */}
-        {/* ========================================================================= */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Applications</span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1">{applications.length}</div>
-            <span className="text-[11px] text-slate-500 mt-1 block">Active on your account</span>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-xs bg-blue-50/20">
-            <span className="text-xs font-bold text-[#104A96] uppercase tracking-wider">Under Review</span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-[#104A96] mt-1">{underReviewCount}</div>
-            <span className="text-[11px] text-slate-500 mt-1 block">Verification in progress</span>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-xs bg-emerald-50/20">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Completed</span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-700 mt-1">{completedCount}</div>
-            <span className="text-[11px] text-slate-500 mt-1 block">Processed & delivered</span>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-amber-100 shadow-xs bg-amber-50/20">
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Drafts</span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-amber-700 mt-1">{draftCount}</div>
-            <span className="text-[11px] text-slate-500 mt-1 block">Saved to complete later</span>
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-200 overflow-x-auto space-x-2 sm:space-x-4">
+        {/* Main Navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-1">
           {[
-            { id: 'overview', label: 'Available Services' },
-            { id: 'applications', label: `My Applications (${applications.length})` },
-            { id: 'documents', label: `My Documents (${allDocuments.length})` },
-            { id: 'profile', label: 'My Profile' },
+            { id: 'overview', label: 'Overview', icon: Sparkles },
+            { id: 'applications', label: `My Applications (${applications.length})`, icon: FileText },
+            { id: 'invoices', label: `My Invoices (${invoices.length})`, icon: Receipt },
+            { id: 'documents', label: `My Documents (${allDocuments.length})`, icon: ShieldCheck },
+            { id: 'profile', label: 'Profile Settings', icon: User },
           ].map((tab) => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`py-3 px-4 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap transition-colors ${
+              className={`inline-flex items-center gap-2 px-4 py-3 border-b-2 font-bold text-xs sm:text-sm transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'border-[#104A96] text-[#104A96]'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                  ? 'border-[#104A96] text-[#104A96] bg-white rounded-t-xl'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              {tab.label}
+              <tab.icon className="w-4 h-4" />
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 1: AVAILABLE SERVICES (PHASE 2 & 3)                                   */}
-        {/* Clicking Aadhaar directly opens the Aadhaar application form!             */}
+        {/* TAB 1: OVERVIEW                                                           */}
         {/* ========================================================================= */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
             
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Apply for Documentation Services</h3>
-                <p className="text-xs sm:text-sm text-slate-500">
-                  Select Aadhaar Card to start your direct assisted application immediately without unnecessary redirect screens.
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Total Applications
+                </span>
+                <div className="text-2xl font-black text-slate-900 font-mono">
+                  {applications.length}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Submitted requests</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Active in Review
+                </span>
+                <div className="text-2xl font-black text-[#104A96] font-mono">
+                  {underReviewCount}
+                </div>
+                <p className="text-[11px] text-blue-600 mt-1">Verification in progress</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Completed & Approved
+                </span>
+                <div className="text-2xl font-black text-emerald-600 font-mono">
+                  {completedCount}
+                </div>
+                <p className="text-[11px] text-emerald-700 mt-1">Filing finished</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Pending Invoices
+                </span>
+                <div className="text-2xl font-black text-amber-600 font-mono">
+                  {outstandingInvoiceCount}
+                </div>
+                <p className="text-[11px] text-amber-700 mt-1">
+                  {totalBalanceDue > 0 ? `Due: ${formatINR(totalBalanceDue)}` : 'All paid up'}
                 </p>
               </div>
             </div>
 
-            {/* Featured Aadhaar Direct Application Card */}
-            <div className="bg-gradient-to-r from-blue-900 via-[#104A96] to-sky-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-              <div className="max-w-2xl space-y-3 relative z-10">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-blue-100 text-xs font-bold uppercase tracking-wide">
-                  <Sparkles className="w-3.5 h-3.5 text-[#FF8500]" />
-                  <span>High Priority Service</span>
+            {/* Recent Notifications Feed */}
+            {notifications.length > 0 && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-[#104A96]" />
+                    <span>Recent Updates & Alerts ({notifications.length})</span>
+                  </h3>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                  Aadhaar Card Service Application
-                </h2>
-                <p className="text-xs sm:text-sm text-blue-100 leading-relaxed font-normal">
-                  Direct assisted online application for Aadhaar Address Update, Name Correction, DOB Update, and Seva Kendra Appointment bookings.
-                </p>
-                <div className="pt-2">
-                  <Link
-                    to="/apply/aadhaar"
-                    className="inline-flex items-center gap-2 bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-sm px-6 py-3 rounded-xl shadow-md transition-all group"
-                  >
-                    <span>Start Aadhaar Application Now</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            {/* Other Available Services Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[
-                { title: 'PAN Card', slug: 'pan-card', desc: 'New PAN enrolment, photo/signature & correction', icon: CreditCard, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                { title: 'Voter ID Card', slug: 'voter-id', desc: 'Form 6 new enrolment & EPIC shifting', icon: Vote, color: 'text-sky-600', bg: 'bg-sky-50' },
-                { title: 'MSME / Udyam', slug: 'msme', desc: 'Business MSME registration certificate', icon: Building2, color: 'text-amber-600', bg: 'bg-amber-50' },
-                { title: 'Labour License', slug: 'labour-license', desc: 'Shops & commercial establishment license', icon: FileCheck2, color: 'text-orange-600', bg: 'bg-orange-50' },
-                { title: 'UAN / PF Services', slug: 'uan-pf', desc: 'KYC update, member transfer & claim assistance', icon: Landmark, color: 'text-cyan-600', bg: 'bg-cyan-50' },
-                { title: 'ESI Details Update', slug: 'esi', desc: 'IP medical card & family member additions', icon: HeartHandshake, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                { title: 'Passport Service', slug: 'passport', desc: 'Fresh passport issuance, renewal & Tatkaal slots', icon: Globe, color: 'text-blue-700', bg: 'bg-blue-50' },
-              ].map((serv, idx) => {
-                const IconComp = serv.icon;
-                return (
-                  <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${serv.bg} ${serv.color}`}>
-                          <IconComp className="w-5 h-5" />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Direct Portal</span>
+                <div className="space-y-2">
+                  {notifications.slice(0, 4).map((n) => (
+                    <div key={n.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs flex items-start justify-between gap-3">
+                      <div>
+                        <span className="font-bold text-slate-900 block">{n.title}</span>
+                        <p className="text-slate-600 mt-0.5">{n.message}</p>
                       </div>
-                      <h4 className="text-base font-bold text-slate-900 mb-1">{serv.title}</h4>
-                      <p className="text-xs text-slate-500 leading-relaxed mb-4">{serv.desc}</p>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {new Date(n.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                      <Link
-                        to={`/apply/${serv.slug}`}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white font-bold text-xs shadow-xs transition-colors"
-                      >
-                        <span>Apply Directly</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
+            {/* Recent Applications Snapshot */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-base font-bold text-slate-900">Recent Applications</h3>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('applications')}
+                  className="text-xs font-bold text-[#104A96] hover:underline"
+                >
+                  View All &rarr;
+                </button>
+              </div>
 
-                      <a
-                        href={`/services/${serv.slug}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
-                        title="View Official Guidelines"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
+              {applications.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs">
+                  No applications submitted yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {applications.slice(0, 3).map((app) => (
+                    <div
+                      key={app.id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-[#104A96]">{app.id}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-[#104A96]">
+                            {String(app.status).replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-slate-900 text-sm mt-1">{app.serviceTitle}</h4>
+                        <p className="text-xs text-slate-500">
+                          Submitted on {new Date(app.createdAt || app.submissionDate || Date.now()).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadAppPDF(app)}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>PDF Copy</span>
+                        </button>
+
+                        <Link
+                          to={`/applications/${app.id}`}
+                          className="px-4 py-1.5 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold transition-all shadow-xs"
+                        >
+                          View Status Timeline
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: MY APPLICATIONS (PHASE 2 & 6)                                      */}
+        {/* TAB 2: MY APPLICATIONS                                                    */}
         {/* ========================================================================= */}
         {activeTab === 'applications' && (
           <div className="space-y-6">
-            
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Your Submitted Applications</h3>
+                <h3 className="text-lg font-bold text-slate-900">Your Submitted Service Applications</h3>
                 <p className="text-xs sm:text-sm text-slate-500">
-                  Track status, inspect submitted details, view uploaded proofs, or continue saved drafts.
+                  Track full multi-stage processing, review verification notes, and download official soft copies.
                 </p>
               </div>
 
               <Link
-                to="/apply/aadhaar"
-                className="inline-flex items-center gap-2 bg-[#104A96] hover:bg-[#07366F] text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-xs transition-colors shrink-0"
+                to="/services"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#104A96] text-white font-bold text-xs shadow-xs"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span>New Aadhaar Application</span>
+                <span>New Application</span>
               </Link>
             </div>
 
-            {loadingApps ? (
-              <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm">
-                <div className="w-8 h-8 border-3 border-[#104A96] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                <p className="text-xs text-slate-500 font-medium">Retrieving customer applications...</p>
-              </div>
-            ) : applications.length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm space-y-4">
+            {applications.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-4">
                 <FileText className="w-12 h-12 text-slate-300 mx-auto" />
-                <div className="space-y-1">
-                  <h4 className="text-base font-bold text-slate-800">No Applications Filed Yet</h4>
-                  <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                    You haven't initiated any applications under your customer account yet. Apply for Aadhaar Card assistance to get started.
-                  </p>
-                </div>
+                <h4 className="text-base font-bold text-slate-800">No Applications Submitted Yet</h4>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
+                  Start your first statutory service request for Aadhaar, PAN Card, Voter ID, MSME, or Labour License.
+                </p>
                 <Link
-                  to="/apply/aadhaar"
-                  className="inline-flex items-center gap-2 bg-[#FF8500] hover:bg-[#e67700] text-white font-bold text-xs sm:text-sm py-3 px-6 rounded-xl shadow-md transition-all"
+                  to="/services"
+                  className="inline-flex items-center gap-2 bg-[#104A96] text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-xs"
                 >
-                  <Fingerprint className="w-4 h-4" />
-                  <span>Start First Application</span>
+                  <span>Explore Available Services</span>
                 </Link>
               </div>
             ) : (
               <div className="space-y-4">
-                {applications.map((app) => (
+                {applications.map((app) => {
+                  const linkedInv = invoices.find(inv => inv.applicationId === app.id);
+
+                  return (
+                    <div
+                      key={app.id}
+                      className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono font-bold text-xs text-[#104A96] bg-blue-50 px-2.5 py-1 rounded-lg">
+                              {app.id}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-[#104A96]">
+                              {String(app.status).replace(/_/g, ' ')}
+                            </span>
+                            {linkedInv && (
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                linkedInv.paymentStatus === 'paid'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                Payment: {linkedInv.paymentStatus.replace('_', ' ')}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-base font-bold text-slate-900 mt-2">{app.serviceTitle}</h4>
+                          <p className="text-xs text-slate-500">
+                            Filing submitted on {new Date(app.createdAt || app.submissionDate || Date.now()).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {linkedInv && (
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadInvoicePDF(linkedInv)}
+                              className="px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-colors flex items-center gap-1.5"
+                            >
+                              <Receipt className="w-3.5 h-3.5" />
+                              <span>Invoice PDF</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadAppPDF(app)}
+                            className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download Soft Copy</span>
+                          </button>
+
+                          <Link
+                            to={`/applications/${app.id}`}
+                            className="px-4 py-1.5 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Full Timeline</span>
+                          </Link>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl">
+                        <div>Applicant: <strong className="text-slate-800 block truncate">{app.customerName}</strong></div>
+                        <div>Request Type: <strong className="text-slate-800 block truncate capitalize">{app.formData?.serviceType?.replace('-', ' ') || 'Standard'}</strong></div>
+                        <div>Attached Proofs: <strong className="text-emerald-700 block">{app.documents.filter(d => d.status === 'uploaded' || d.fileUrl).length} files attached</strong></div>
+                        <div>Mobile: <strong className="text-slate-800 block">{app.customerMobile}</strong></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: MY INVOICES (MODULE 1.6)                                           */}
+        {/* ========================================================================= */}
+        {activeTab === 'invoices' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Your Official Tax Invoices & Receipts</h3>
+                <p className="text-xs sm:text-sm text-slate-500">
+                  Inspect itemized billing, verify payments, and download certified PDF invoices.
+                </p>
+              </div>
+            </div>
+
+            {invoices.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-3">
+                <Receipt className="w-12 h-12 text-slate-300 mx-auto" />
+                <h4 className="text-base font-bold text-slate-800">No Invoices Issued Yet</h4>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
+                  When our accounts team issues a facilitation invoice for your application, it will be securely accessible here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {invoices.map((inv) => (
                   <div
-                    key={app.id}
-                    className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs hover:shadow-md transition-all space-y-4"
+                    key={inv.id}
+                    className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                       <div>
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-sm font-bold text-slate-900">{app.serviceTitle}</span>
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                            app.status === 'Submitted' ? 'bg-blue-100 text-blue-800' :
-                            app.status === 'Under Review' ? 'bg-amber-100 text-amber-800' :
-                            app.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
-                            'bg-slate-100 text-slate-700'
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-[#104A96] bg-blue-50 px-2.5 py-1 rounded-lg">
+                            {inv.invoiceNumber}
+                          </span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            inv.paymentStatus === 'paid'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : inv.paymentStatus === 'partially_paid'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-red-100 text-red-800'
                           }`}>
-                            {app.status}
+                            {inv.paymentStatus.replace('_', ' ')}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap gap-2">
-                          <span>App ID: <strong className="font-mono text-slate-800">{app.id}</strong></span>
-                          <span>•</span>
-                          <span>Submitted: {app.submissionDate}</span>
-                        </div>
+                        <h4 className="text-base font-bold text-slate-900 mt-2">{inv.serviceName}</h4>
+                        <p className="text-xs text-slate-500">
+                          Invoice Date: {inv.invoiceDate} {inv.dueDate ? ` | Due: ${inv.dueDate}` : ''}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Link
-                          to={`/applications/${app.id}`}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#F1F7FF] text-[#104A96] hover:bg-blue-100 font-bold text-xs transition-colors"
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadInvoicePDF(inv)}
+                          className="px-4 py-2 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View Full Details & Status</span>
-                        </Link>
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download Invoice PDF</span>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600">
-                      <div>Applicant: <strong className="text-slate-800 block truncate">{app.customerName}</strong></div>
-                      <div>Request: <strong className="text-slate-800 block truncate capitalize">{app.formData.serviceType?.replace('-', ' ') || 'Update'}</strong></div>
-                      <div>Uploaded Proofs: <strong className="text-emerald-700 block">{app.documents.filter(d => d.status === 'uploaded').length} files</strong></div>
-                      <div>Mobile: <strong className="text-slate-800 block">{app.customerMobile}</strong></div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-4 rounded-2xl font-mono">
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Total Bill:</span>
+                        <strong className="text-slate-900 text-sm block">{formatINR(inv.totalAmount)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Paid Confirmed:</span>
+                        <strong className="text-emerald-700 text-sm block">{formatINR(inv.amountPaid)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Balance Due:</span>
+                        <strong className={`text-sm block ${inv.balanceDue > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                          {formatINR(inv.balanceDue)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Payment Mode:</span>
+                        <strong className="text-slate-800 text-xs block font-sans">
+                          {inv.payments?.[0]?.paymentMethod || 'Direct / UPI'}
+                        </strong>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: MY DOCUMENTS (PHASE 2 & 4)                                         */}
+        {/* TAB 4: MY DOCUMENTS & SOFT COPIES (MODULE 4)                               */}
         {/* ========================================================================= */}
         {activeTab === 'documents' && (
           <div className="space-y-6">
             
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Your Uploaded Document Library</h3>
-                <p className="text-xs sm:text-sm text-slate-500">
-                  Documents attached across your applications. Click preview to inspect files securely.
-                </p>
-              </div>
+            {/* Soft Copies Section */}
+            <div className="space-y-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <FileCheck2 className="w-5 h-5 text-[#104A96]" />
+                <span>Generated Official Application Soft Copies</span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Official PDF filing dossiers generated for your citizen records.
+              </p>
+
+              {applications.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 text-center text-slate-400 text-xs border border-slate-200">
+                  No soft copies generated yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {applications.map((app) => (
+                    <div key={app.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-bold text-[#104A96]">{app.id}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase">
+                          Certified Dossier
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm truncate">{app.serviceTitle}</h4>
+                      <p className="text-xs text-slate-500">
+                        Date: {new Date(app.createdAt || app.submissionDate || Date.now()).toLocaleDateString()}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadAppPDF(app)}
+                        className="w-full py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download Soft Copy</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {allDocuments.length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm space-y-3">
-                <FileText className="w-12 h-12 text-slate-300 mx-auto" />
-                <h4 className="text-base font-bold text-slate-800">No Documents Uploaded Yet</h4>
-                <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
-                  When you submit applications and upload Aadhaar scans, electricity bills, or passports, they will appear here.
-                </p>
-                <Link
-                  to="/apply/aadhaar"
-                  className="inline-flex items-center gap-2 bg-[#104A96] text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-xs"
-                >
-                  <span>Upload Documents for Aadhaar</span>
-                </Link>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {allDocuments.map(({ doc, appId, appTitle }, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-4"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                          Verified Upload
-                        </span>
-                        <span className="text-[11px] font-mono text-slate-400">{appId}</span>
+            {/* Submitted Proofs Library */}
+            <div className="space-y-3 pt-6 border-t border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">Your Uploaded Identity Proofs Library</h3>
+              <p className="text-xs text-slate-500">
+                Individual documents attached during application filing.
+              </p>
+
+              {allDocuments.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center text-slate-400 text-xs border border-slate-200">
+                  No individual identity files uploaded yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {allDocuments.map(({ doc, appId, appTitle }, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col justify-between space-y-3"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                            Attached File
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">{appId}</span>
+                        </div>
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{doc.name}</h4>
+                        <p className="text-[11px] text-slate-500 truncate">{doc.fileName || 'Attached proof'}</p>
                       </div>
 
-                      <h4 className="text-sm font-bold text-slate-900">{doc.name}</h4>
-                      <p className="text-xs text-slate-500 truncate">File: {doc.fileName || 'Attached'} ({doc.fileSize})</p>
-                      <p className="text-[11px] text-slate-400">Attached to: {appTitle}</p>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                       <button
                         type="button"
                         onClick={() => setPreviewDoc(doc)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#F1F7FF] text-[#104A96] hover:bg-blue-100 font-bold text-xs transition-colors"
+                        className="w-full py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:text-[#104A96] text-xs font-bold transition-colors flex items-center justify-center gap-1"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>Preview Document</span>
+                        <span>Inspect File</span>
                       </button>
-
-                      {doc.uploadedAt && (
-                        <span className="text-[11px] text-slate-400">{doc.uploadedAt}</span>
-                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
 
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 4: MY PROFILE (PHASE 2)                                               */}
+        {/* TAB 5: PROFILE                                                            */}
         {/* ========================================================================= */}
         {activeTab === 'profile' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-xl border border-slate-100 max-w-2xl space-y-6">
-            
-            <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-bold text-slate-900">Customer Profile Settings</h3>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Manage your contact coordinates used for official document filings.
-              </p>
-            </div>
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs max-w-2xl">
+            <h3 className="text-lg font-bold text-slate-900">Your Citizen Profile</h3>
+            <p className="text-xs sm:text-sm text-slate-500 mb-6">
+              This information will be pre-filled automatically when you apply for government services.
+            </p>
 
             {profileSaved && (
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-center gap-2">
+              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
                 <Check className="w-4 h-4 text-emerald-600" />
-                <span>Profile information saved successfully!</span>
+                <span>Profile updated successfully!</span>
               </div>
             )}
 
-            <form onSubmit={handleSaveProfile} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <User className="w-4 h-4" />
-                  </div>
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Full Name *</label>
                   <input
                     type="text"
                     required
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-[#104A96]"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Mobile Phone *</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileMobile}
+                    onChange={(e) => setProfileMobile(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                    Mobile Number
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="tel"
-                      required
-                      value={profileMobile}
-                      onChange={(e) => setProfileMobile(e.target.value.replace(/\D/g, ''))}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-[#104A96]"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Email Address</label>
+                  <input
+                    type="email"
+                    value={profileEmail}
+                    onChange={(e) => setProfileEmail(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                  />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      value={profileEmail}
-                      onChange={(e) => setProfileEmail(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-[#104A96]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  City / Town
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <MapPin className="w-4 h-4" />
-                  </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">City / District</label>
                   <input
                     type="text"
                     value={profileCity}
                     onChange={(e) => setProfileCity(e.target.value)}
-                    placeholder="e.g. Hyderabad"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-[#104A96]"
+                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Residential Address
-                </label>
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">Residential Address</label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={profileAddress}
                   onChange={(e) => setProfileAddress(e.target.value)}
-                  placeholder="Street, area, landmarks..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-[#104A96]"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-[#104A96] focus:outline-none"
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">Changes apply to future applications</span>
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={profileLoading}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs sm:text-sm font-bold shadow-xs transition-colors"
+                  className="px-6 py-2.5 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>{profileLoading ? 'Saving...' : 'Save Profile'}</span>
+                  {profileLoading ? 'Saving...' : 'Save Profile Changes'}
                 </button>
               </div>
             </form>
-
           </div>
         )}
 
       </div>
 
       {/* Document Preview Modal */}
-      <DocumentPreviewModal
-        document={previewDoc}
-        onClose={() => setPreviewDoc(null)}
-      />
+      {previewDoc && (
+        <DocumentPreviewModal
+          document={previewDoc}
+          onClose={() => setPreviewDoc(null)}
+        />
+      )}
 
     </div>
   );
 };
-

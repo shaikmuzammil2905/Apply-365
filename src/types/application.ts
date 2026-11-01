@@ -21,17 +21,64 @@ export interface ApplicationDocument {
 }
 
 export type ApplicationStatus = 
+  | 'application_received'
+  | 'under_review'
+  | 'documents_pending'
+  | 'documents_verified'
+  | 'payment_pending'
+  | 'payment_received'
+  | 'processing'
+  | 'submitted_to_authority'
+  | 'approved'
+  | 'rejected'
+  | 'on_hold'
+  | 'completed'
+  | 'cancelled'
   | 'Draft' 
   | 'Submitted' 
   | 'Under Review' 
   | 'Action Required' 
   | 'Completed'
   | 'submitted'
-  | 'under_review'
-  | 'document_verified'
-  | 'processing'
-  | 'completed'
-  | 'rejected';
+  | 'document_verified';
+
+export interface ApplicationStatusHistoryItem {
+  id: string;
+  applicationId: string;
+  previousStatus?: string;
+  newStatus: ApplicationStatus | string;
+  customerMessage?: string;
+  internalNote?: string;
+  expectedCompletionDate?: string;
+  updatedBy: string;
+  createdAt: string;
+}
+
+export interface ApplicationDeliveryRecord {
+  id: string;
+  applicationId: string;
+  customerId: string;
+  deliveryChannel: 'email' | 'whatsapp' | 'portal_notification';
+  recipient: string;
+  documentReference?: string;
+  deliveryStatus: 'prepared' | 'sent' | 'delivered' | 'failed';
+  failureReason?: string;
+  sentBy: string;
+  sentAt: string;
+}
+
+export interface CustomerNotification {
+  id: string;
+  customerId: string;
+  applicationId?: string;
+  invoiceId?: string;
+  notificationType: 'status_update' | 'invoice_created' | 'payment_recorded' | 'document_delivery';
+  title: string;
+  message: string;
+  deliveryChannel?: 'in_app' | 'email' | 'whatsapp';
+  isRead: boolean;
+  createdAt: string;
+}
 
 export interface AadhaarFormData {
   // Step 1: Customer Details
