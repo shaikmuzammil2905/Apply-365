@@ -34,6 +34,7 @@ export const AdminServicesPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState('');
+  const [subServicesSuccess, setSubServicesSuccess] = useState('');
 
   const loadServices = async () => {
     const list = await getServices();
@@ -65,6 +66,7 @@ export const AdminServicesPage: React.FC = () => {
     setBenefitsText('Guaranteed pre-verification of documents\nDirect portal submission assistance\nFast status tracking and support');
     setSaveError('');
     setSaveSuccess('');
+    setSubServicesSuccess('');
     setIsModalOpen(true);
   };
 
@@ -80,7 +82,29 @@ export const AdminServicesPage: React.FC = () => {
     setBenefitsText(svc.benefits.join('\n'));
     setSaveError('');
     setSaveSuccess('');
+    setSubServicesSuccess('');
     setIsModalOpen(true);
+  };
+
+  const handleQuickSaveSubServices = async () => {
+    if (!editingService) return;
+    setIsSaving(true);
+    setSaveError('');
+    setSubServicesSuccess('');
+    try {
+      const updatedService: ServiceDetail = {
+        ...editingService,
+        subServices: subServices.length > 0 ? subServices : undefined
+      };
+      await saveService(updatedService);
+      await loadServices();
+      setSubServicesSuccess('Sub-service options saved and synchronized with live website!');
+      setTimeout(() => setSubServicesSuccess(''), 4000);
+    } catch (err: any) {
+      setSaveError('Sub-service save failed: ' + (err.message || ''));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddSubService = () => {
@@ -412,16 +436,36 @@ export const AdminServicesPage: React.FC = () => {
                         Customize what options customers see under "Service Required *" on the live application form.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleResetDefaultSubServices}
-                      title="Reset to official statutory defaults"
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-[#104A96] bg-white border border-slate-200 px-2.5 py-1 rounded-lg transition-colors shadow-2xs self-start sm:self-auto"
-                    >
-                      <RotateCcw className="w-3 h-3 text-slate-500" />
-                      <span>Reset Defaults</span>
-                    </button>
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={handleResetDefaultSubServices}
+                        title="Reset to official statutory defaults"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-[#104A96] bg-white border border-slate-200 px-2.5 py-1.5 rounded-lg transition-colors shadow-2xs"
+                      >
+                        <RotateCcw className="w-3 h-3 text-slate-500" />
+                        <span>Reset Defaults</span>
+                      </button>
+                      {editingService && (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={handleQuickSaveSubServices}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-all shadow-xs active:scale-95 shrink-0"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Save Sub-Services</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {subServicesSuccess && (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-bold flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{subServicesSuccess}</span>
+                    </div>
+                  )}
 
                   {/* Sub-services list */}
                   <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
@@ -535,8 +579,8 @@ export const AdminServicesPage: React.FC = () => {
 
               </div>
 
-              {/* Modal Footer */}
-              <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50">
+              {/* Modal Footer (Sticky at bottom so Save is ALWAYS visible) */}
+              <div className="shrink-0 sticky bottom-0 p-4 sm:p-5 border-t border-slate-200 flex items-center justify-between sm:justify-end gap-3 bg-white/95 backdrop-blur-md shadow-lg z-30">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

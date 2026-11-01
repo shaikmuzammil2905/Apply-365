@@ -58,16 +58,20 @@ export const AdminApplicationsPage: React.FC = () => {
   const [applications, setApplications] = useState<CustomerApplication[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'last7' | 'last30' | 'thisMonth' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   
   // Selected Application for Details & Status Updates
   const [selectedApp, setSelectedApp] = useState<CustomerApplication | null>(null);
   const [statusHistory, setStatusHistory] = useState<ApplicationStatusHistoryItem[]>([]);
   const [deliveries, setDeliveries] = useState<ApplicationDeliveryRecord[]>([]);
 
-  // Update Status Form State
+  // Update Status & Date Form State
   const [newStatus, setNewStatus] = useState<string>('under_review');
   const [customerMessage, setCustomerMessage] = useState('');
   const [internalNote, setInternalNote] = useState('');
+  const [customSubmissionDate, setCustomSubmissionDate] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [statusUpdateSuccess, setStatusUpdateSuccess] = useState(false);
@@ -96,7 +100,9 @@ export const AdminApplicationsPage: React.FC = () => {
     setNewStatus(app.status || 'under_review');
     setCustomerMessage('');
     setInternalNote('');
-    setExpectedDate('');
+    const rawDate = app.createdAt || app.submissionDate || new Date().toISOString();
+    setCustomSubmissionDate(rawDate.slice(0, 10));
+    setExpectedDate(app.expectedCompletionDate ? app.expectedCompletionDate.slice(0, 10) : '');
     setStatusUpdateSuccess(false);
 
     // Fetch history and deliveries
@@ -121,6 +127,7 @@ export const AdminApplicationsPage: React.FC = () => {
         customerMessage.trim() || `Status updated to ${newStatus.replace(/_/g, ' ')}.`,
         internalNote.trim() || undefined,
         expectedDate || undefined,
+        customSubmissionDate ? new Date(customSubmissionDate).toISOString() : undefined,
         'Super Administrator'
       );
 
@@ -199,8 +206,50 @@ export const AdminApplicationsPage: React.FC = () => {
       a.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.customerMobile.includes(searchQuery) ||
       a.serviceTitle.toLowerCase().includes(searchQuery.toLowerCase());
+    
     const matchesStatus = statusFilter === 'all' || a.status === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    // Date Filtering Logic
+    let matchesDate = true;
+    if (dateFilter !== 'all') {
+      const rawDate = a.submissionDate || a.createdAt || '';
+      const appDate = rawDate ? new Date(rawDate) : new Date();
+      const now = new Date();
+
+      if (dateFilter === 'today') {
+        matchesDate = appDate.toDateString() === now.toDateString();
+      } else if (dateFilter === 'yesterday') {
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        matchesDate = appDate.toDateString() === yesterday.toDateString();
+      } else if (dateFilter === 'last7') {
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        matchesDate = appDate >= sevenDaysAgo;
+      } else if (dateFilter === 'last30') {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        matchesDate = appDate >= thirtyDaysAgo;
+      } else if (dateFilter === 'thisMonth') {
+        matchesDate = appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
+      } else if (dateFilter === 'custom') {
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          matchesDate = appDate >= start && appDate <= end;
+        } else if (customStartDate) {
+          const start = new Date(customStartDate);
+          start.setHours(0, 0, 0, 0);
+          matchesDate = appDate >= start;
+        } else if (customEndDate) {
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          matchesDate = appDate <= end;
+        }
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   return (
@@ -234,45 +283,118 @@ export const AdminApplicationsPage: React.FC = () => {
       </div>
 
       {/* Filter and Search */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search by ID, applicant name or phone..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
-          />
-        </div>
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search by ID, applicant name or phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#104A96]"
+            />
+          </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-          <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shrink-0 ${
-              statusFilter === 'all' 
-                ? 'bg-[#104A96] text-white shadow-xs' 
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            All Submissions
-          </button>
-          {ALL_STATUSES.slice(0, 7).map((st) => (
+          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+            <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <button
-              key={st.id}
               type="button"
-              onClick={() => setStatusFilter(st.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors shrink-0 ${
-                statusFilter === st.id 
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shrink-0 ${
+                statusFilter === 'all' 
                   ? 'bg-[#104A96] text-white shadow-xs' 
                   : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              {st.label}
+              All Submissions
             </button>
-          ))}
+            {ALL_STATUSES.slice(0, 7).map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => setStatusFilter(st.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors shrink-0 ${
+                  statusFilter === st.id 
+                    ? 'bg-[#104A96] text-white shadow-xs' 
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {st.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Date Customize & Date Range Toolbar */}
+        <div className="flex flex-wrap items-center gap-2 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+          <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+            <Calendar className="w-4 h-4 text-[#104A96]" />
+            <span>Customize Date Filter:</span>
+          </span>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { id: 'all', label: 'All Dates' },
+              { id: 'today', label: 'Today' },
+              { id: 'yesterday', label: 'Yesterday' },
+              { id: 'last7', label: 'Last 7 Days' },
+              { id: 'last30', label: 'Last 30 Days' },
+              { id: 'thisMonth', label: 'This Month' },
+              { id: 'custom', label: 'Custom Range...' }
+            ].map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setDateFilter(p.id as any)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  dateFilter === p.id 
+                    ? 'bg-[#104A96] text-white shadow-xs' 
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {dateFilter === 'custom' && (
+            <div className="flex items-center gap-2 pt-1 sm:pt-0 pl-1 border-t sm:border-t-0 sm:border-l border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500">From:</span>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-800 bg-white"
+              />
+              <span className="text-[11px] font-semibold text-slate-500">To:</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-800 bg-white"
+              />
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => { setCustomStartDate(''); setCustomEndDate(''); }}
+                  className="text-xs text-red-600 hover:underline font-bold px-1"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
+          {dateFilter !== 'all' && (
+            <button
+              type="button"
+              onClick={() => { setDateFilter('all'); setCustomStartDate(''); setCustomEndDate(''); }}
+              className="text-xs text-slate-500 hover:text-slate-800 underline font-semibold ml-auto"
+            >
+              Reset Date Filter
+            </button>
+          )}
         </div>
       </div>
 
@@ -316,8 +438,17 @@ export const AdminApplicationsPage: React.FC = () => {
                         {app.documents.filter(d => d.status === 'uploaded' || d.fileUrl).length} Uploaded
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-mono text-slate-500 text-[11px]">
-                      {new Date(app.createdAt || app.submissionDate || Date.now()).toLocaleDateString()}
+                    <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
+                      <div className="font-bold flex items-center gap-1 text-slate-800">
+                        <Calendar className="w-3 h-3 text-[#104A96]" />
+                        <span>{new Date(app.createdAt || app.submissionDate || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      </div>
+                      {app.expectedCompletionDate && (
+                        <div className="text-[10px] text-amber-600 flex items-center gap-0.5 mt-0.5">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>Target: {new Date(app.expectedCompletionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#104A96] border border-blue-200 uppercase tracking-wider">
@@ -497,7 +628,7 @@ export const AdminApplicationsPage: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleStatusSubmit} className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold text-slate-700">New Application Status *</label>
                       <select
@@ -514,7 +645,23 @@ export const AdminApplicationsPage: React.FC = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-bold text-slate-700">Expected Completion Date</label>
+                      <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-[#104A96]" />
+                        <span>Filing / Submission Date</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={customSubmissionDate}
+                        onChange={(e) => setCustomSubmissionDate(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#104A96] focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Expected Completion Date</span>
+                      </label>
                       <input
                         type="date"
                         value={expectedDate}

@@ -462,22 +462,54 @@ export async function getServices(): Promise<ServiceDetail[]> {
       .order('display_order', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      const services: ServiceDetail[] = data.map((item: any) => ({
-        id: item.id,
-        slug: item.slug,
-        title: item.title,
-        shortDescription: item.short_description || item.shortDescription,
-        fullDescription: item.full_description || item.fullDescription,
-        accentColor: item.accent_color || item.accentColor || '#104A96',
-        badge: item.badge || 'Popular',
-        iconName: item.icon_name || item.iconName || 'FileText',
-        subServices: item.sub_services || item.subServices || getDefaultSubServices(item.slug),
-        documents: item.documents || [],
-        officialDisclaimer: item.official_disclaimer || item.officialDisclaimer || '',
-        benefits: item.benefits || [],
-        processSteps: item.process_steps || item.processSteps || [],
-        faqs: item.faqs || []
-      }));
+      const cachedAll = getStored<ServiceDetail[]>(SERVICES_KEY, []);
+
+      const services: ServiceDetail[] = data.map((item: any) => {
+        // 1. Check for fallback storage in faqs JSONB column
+        const faqsStorage = Array.isArray(item.faqs) 
+          ? item.faqs.find((f: any) => f.question === '__sub_services_storage__') 
+          : null;
+        let parsedSubServices: SubServiceOption[] | null = null;
+        if (faqsStorage && faqsStorage.answer) {
+          try {
+            parsedSubServices = JSON.parse(faqsStorage.answer);
+          } catch {}
+        }
+        const cleanFaqs = Array.isArray(item.faqs) 
+          ? item.faqs.filter((f: any) => f.question !== '__sub_services_storage__') 
+          : [];
+
+        // 2. Check cached subServices in localStorage
+        const cachedSvc = cachedAll.find(s => s.id === item.id || s.slug === item.slug);
+        const cachedSubs = cachedSvc?.subServices && cachedSvc.subServices.length > 0 
+          ? cachedSvc.subServices 
+          : null;
+
+        // Resolve subServices with priority: direct column -> fallback faqs storage -> cache -> statutory default
+        const resolvedSubServices = 
+          (item.sub_services && item.sub_services.length > 0 ? item.sub_services : null) ||
+          (parsedSubServices && parsedSubServices.length > 0 ? parsedSubServices : null) ||
+          cachedSubs ||
+          getDefaultSubServices(item.slug);
+
+        return {
+          id: item.id,
+          slug: item.slug,
+          title: item.title,
+          shortDescription: item.short_description || item.shortDescription,
+          fullDescription: item.full_description || item.fullDescription,
+          accentColor: item.accent_color || item.accentColor || '#104A96',
+          badge: item.badge || 'Popular',
+          iconName: item.icon_name || item.iconName || 'FileText',
+          subServices: resolvedSubServices,
+          documents: item.documents || [],
+          officialDisclaimer: item.official_disclaimer || item.officialDisclaimer || '',
+          benefits: item.benefits || [],
+          processSteps: item.process_steps || item.processSteps || [],
+          faqs: cleanFaqs
+        };
+      });
+
       setStored(SERVICES_KEY, services);
       return services;
     }
@@ -554,6 +586,17 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
   setStored(SERVICES_KEY, all);
 
   // Sync to Supabase
+  // Prepare sub_services in faqs JSONB column as fallback storage
+  // so that even if the SQL column sub_services is pending in Supabase,
+  // the data is 100% saved and persisted across all devices!
+  const cleanFaqs = (service.faqs || []).filter((f: any) => f.question !== '__sub_services_storage__');
+  const faqsWithSubServices = [
+    ...cleanFaqs,
+    ...(service.subServices && service.subServices.length > 0 
+      ? [{ question: '__sub_services_storage__', answer: JSON.stringify(service.subServices) }] 
+      : [])
+  ];
+
   const payload: any = {
     id: service.id,
     slug: service.slug,
@@ -567,7 +610,7 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
     documents: service.documents,
     benefits: service.benefits,
     process_steps: service.processSteps,
-    faqs: service.faqs,
+    faqs: faqsWithSubServices,
     updated_at: new Date().toISOString()
   };
 
@@ -577,7 +620,8 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
   });
 
   if (primaryError) {
-    // Retry without sub_services in case column is not yet migrated in Supabase
+    // Retry without sub_services column if it hasn't been added via SQL yet.
+    // faqsWithSubServices still preserves the sub_services in Supabase!
     const { sub_services, ...strippedPayload } = payload;
     const { error: fallbackError } = await supabase.from('services').upsert({
       ...strippedPayload,
@@ -871,12 +915,47 @@ export async function getApplicationStatusHistory(applicationId: string): Promis
   return all.filter(h => h.applicationId === applicationId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+export async function updateApplicationDates(
+  id: string,
+  newSubmissionDate?: string,
+  expectedCompletionDate?: string
+): Promise<CustomerApplication> {
+  const all = getStored<CustomerApplication[]>(APPLICATIONS_KEY, []);
+  const app = all.find(a => a.id === id);
+  if (!app) {
+    throw new Error(`Application ${id} not found`);
+  }
+
+  if (newSubmissionDate) {
+    app.submissionDate = newSubmissionDate;
+    app.createdAt = newSubmissionDate;
+  }
+  if (expectedCompletionDate !== undefined) {
+    app.expectedCompletionDate = expectedCompletionDate;
+  }
+  app.updatedAt = new Date().toISOString();
+  setStored(APPLICATIONS_KEY, all);
+
+  try {
+    const updatePayload: any = { updated_at: app.updatedAt };
+    if (newSubmissionDate) updatePayload.created_at = newSubmissionDate;
+    await supabase.from('applications').update(updatePayload).eq('id', id);
+  } catch (err) {
+    console.warn('Supabase app date update failed:', err);
+  }
+
+  await logActivity('Application Date Modified', 'application', id, `Admin updated date for application ${id}`);
+  notifyDataChange('applications', app);
+  return app;
+}
+
 export async function updateApplicationWithHistory(
   id: string,
   newStatus: string,
   customerMessage: string,
   internalNote?: string,
   expectedDate?: string,
+  customSubmissionDate?: string,
   updatedBy: string = 'Super Administrator'
 ): Promise<CustomerApplication> {
   const all = getStored<CustomerApplication[]>(APPLICATIONS_KEY, []);
@@ -887,15 +966,26 @@ export async function updateApplicationWithHistory(
 
   const prevStatus = app.status;
   app.status = newStatus as any;
+  if (customSubmissionDate) {
+    app.submissionDate = customSubmissionDate;
+    app.createdAt = customSubmissionDate;
+  }
+  if (expectedDate !== undefined) {
+    app.expectedCompletionDate = expectedDate;
+  }
   app.updatedAt = new Date().toISOString();
   setStored(APPLICATIONS_KEY, all);
 
   // 1. Update Supabase Application
   try {
-    await supabase.from('applications').update({
+    const updatePayload: any = {
       status: newStatus,
       updated_at: app.updatedAt
-    }).eq('id', id);
+    };
+    if (customSubmissionDate) {
+      updatePayload.created_at = customSubmissionDate;
+    }
+    await supabase.from('applications').update(updatePayload).eq('id', id);
   } catch (err) {
     console.warn('Supabase app status update failed:', err);
   }

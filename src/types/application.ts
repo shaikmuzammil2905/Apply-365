@@ -120,6 +120,7 @@ export interface CustomerApplication {
   status: ApplicationStatus;
   submissionDate: string;
   createdAt?: string;
+  expectedCompletionDate?: string;
   priority?: string;
   formData: any;
   documents: ApplicationDocument[];
