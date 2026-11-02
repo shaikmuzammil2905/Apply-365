@@ -96,9 +96,9 @@ export const Navbar: React.FC = () => {
             {/* Logo - Clean transparent, clearly visible, zero patchwork */}
             <Link to="/" className="flex items-center gap-2 group focus:outline-none transition-transform duration-200 hover:scale-[1.02]">
               <img 
-                src={settings.logoUrl || "/apply365_transparent_logo.png"} 
+                src="/apply365_transparent_logo.png" 
                 alt={settings.siteName || "Apply365 — Services for People"} 
-                className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm max-w-[200px]"
+                className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm max-w-[220px]"
               />
             </Link>
 

@@ -34,7 +34,11 @@ export const ContactPage: React.FC = () => {
   const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
   const rawWa = settings.whatsapp || '+91 91219 92365';
   const cleanWa = rawWa.replace(/[^0-9]/g, '');
-  const supportEmail = settings.supportEmail || settings.email || 'support@apply365.in';
+  const supportEmail = (settings.email && !settings.email.includes('contact@apply365.in'))
+    ? settings.email
+    : (settings.supportEmail && !settings.supportEmail.includes('support@apply365.in'))
+      ? settings.supportEmail
+      : 'applyallservices365@gmail.com';
   const bHours = settings.businessHours;
 
   const handleSubmit = (e: React.FormEvent) => {

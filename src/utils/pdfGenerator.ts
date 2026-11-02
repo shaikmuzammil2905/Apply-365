@@ -42,7 +42,7 @@ export function generateInvoicePDF(invoice: CustomerInvoice): jsPDF {
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
   doc.text('Statutory & Citizen Facilitation Services', margin, y + 5);
-  doc.text('support@apply365.in  |  +91 91219 92365  |  www.apply-365.vercel.app', margin, y + 9);
+  doc.text('applyallservices365@gmail.com  |  +91 91219 92365  |  www.apply-365.vercel.app', margin, y + 9);
 
   // 3. Invoice Header Right (Invoice Number & Status Badge)
   doc.setFont('helvetica', 'bold');
@@ -361,7 +361,7 @@ export function generateApplicationSummaryPDF(app: CustomerApplication): jsPDF {
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
   doc.text('Statutory Service Filing & Verification Dossier', margin, y + 5);
-  doc.text('Official Citizen Support Portal  |  support@apply365.in', margin, y + 9);
+  doc.text('Official Citizen Support Portal  |  applyallservices365@gmail.com', margin, y + 9);
 
   // 3. Application ID Badge Right
   doc.setFont('helvetica', 'bold');
@@ -546,7 +546,7 @@ export function generateApplicationSummaryPDF(app: CustomerApplication): jsPDF {
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text('Official Apply365 Electronic Soft Copy. Valid for citizen status tracking and portal reference.', margin, footerY + 4);
-  doc.text('For queries or escalations, contact support@apply365.in quoting your Application ID.', margin, footerY + 8);
+  doc.text('For queries or escalations, contact applyallservices365@gmail.com quoting your Application ID.', margin, footerY + 8);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(16, 74, 150);

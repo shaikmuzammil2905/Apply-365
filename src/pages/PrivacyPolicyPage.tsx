@@ -68,14 +68,14 @@ export const PrivacyPolicyPage: React.FC = () => {
           <section className="space-y-3">
             <h2 className="text-xl font-bold text-slate-900">5. Document Storage and Deletion</h2>
             <p>
-              Any supporting paperwork reviewed during consultation is maintained only for the duration required to complete procedural guidance. You maintain the right to request immediate deletion of your contact records by emailing <a href="mailto:support@apply365.in" className="text-[#104A96] underline font-medium">support@apply365.in</a>.
+              Any supporting paperwork reviewed during consultation is maintained only for the duration required to complete procedural guidance. You maintain the right to request immediate deletion of your contact records by emailing <a href="mailto:applyallservices365@gmail.com" className="text-[#104A96] underline font-medium">applyallservices365@gmail.com</a>.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-xl font-bold text-slate-900">6. Contact for Privacy Matters</h2>
             <p>
-              If you have any questions or concerns regarding our privacy practices, please contact our Privacy Team at <a href="mailto:support@apply365.in" className="text-[#104A96] underline font-medium">support@apply365.in</a> or call +91 98765 43210.
+              If you have any questions or concerns regarding our privacy practices, please contact our Privacy Team at <a href="mailto:applyallservices365@gmail.com" className="text-[#104A96] underline font-medium">applyallservices365@gmail.com</a> or call +91 91219 92365.
             </p>
           </section>
 

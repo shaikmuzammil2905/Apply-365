@@ -18,7 +18,11 @@ export const Footer: React.FC = () => {
   const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
   const rawWa = settings.whatsapp || '+91 91219 92365';
   const cleanWa = rawWa.replace(/[^0-9]/g, '');
-  const supportEmail = settings.supportEmail || settings.email || 'support@apply365.in';
+  const supportEmail = (settings.email && !settings.email.includes('contact@apply365.in'))
+    ? settings.email
+    : (settings.supportEmail && !settings.supportEmail.includes('support@apply365.in'))
+      ? settings.supportEmail
+      : 'applyallservices365@gmail.com';
   const bHours = settings.businessHours;
 
   const showTagline = settings.tagline && settings.contactVisibility?.showTaglineFooter !== false;
@@ -39,9 +43,9 @@ export const Footer: React.FC = () => {
           <div className="lg:col-span-4 space-y-4">
             <Link to="/" className="inline-block transition-transform duration-200 hover:scale-[1.02]">
               <img 
-                src={settings.logoUrl || "/apply365_logo_white.png"} 
+                src="/apply365_transparent_logo.png" 
                 alt={settings.siteName || "Apply365 — Services for People"} 
-                className="h-11 sm:h-12 w-auto object-contain filter drop-shadow max-w-[220px]"
+                className="h-11 sm:h-12 w-auto object-contain filter drop-shadow-[0_1px_3px_rgba(255,255,255,0.7)] max-w-[220px]"
               />
             </Link>
             
