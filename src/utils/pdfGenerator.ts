@@ -295,6 +295,40 @@ export function generateInvoicePDF(invoice: CustomerInvoice): jsPDF {
 /**
  * Generate a professional Application Soft Copy PDF
  */
+// Robust date formatting helper that gracefully handles ISO strings, pre-formatted strings, and legacy formats
+export function formatPDFDate(rawDate: any): string {
+  if (!rawDate) {
+    return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+    return rawDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  if (typeof rawDate === 'string') {
+    // If it contains " at " (e.g. "2 Nov 2026 at 11:38 AM")
+    if (rawDate.includes(' at ')) {
+      const partBeforeAt = rawDate.split(' at ')[0].trim();
+      const parsedPart = new Date(partBeforeAt);
+      if (!isNaN(parsedPart.getTime())) {
+        return parsedPart.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+      return partBeforeAt;
+    }
+
+    const directDate = new Date(rawDate);
+    if (!isNaN(directDate.getTime())) {
+      return directDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    if (rawDate.length >= 6 && !rawDate.toLowerCase().includes('invalid')) {
+      return rawDate;
+    }
+  }
+
+  return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export function generateApplicationSummaryPDF(app: CustomerApplication): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -338,7 +372,7 @@ export function generateApplicationSummaryPDF(app: CustomerApplication): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Submitted: ${new Date(app.createdAt || app.submissionDate || Date.now()).toLocaleDateString()}`, pageWidth - margin, y + 5, { align: 'right' });
+  doc.text(`Submitted: ${formatPDFDate(app.createdAt || app.submissionDate)}`, pageWidth - margin, y + 5, { align: 'right' });
 
   // Status Badge
   doc.setFillColor(16, 74, 150);

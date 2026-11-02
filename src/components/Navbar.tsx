@@ -17,7 +17,8 @@ import {
   HeartHandshake,
   User,
   UserCheck,
-  LogOut
+  LogOut,
+  Search
 } from 'lucide-react';
 
 interface ServiceNavItem {
@@ -173,15 +174,15 @@ export const Navbar: React.FC = () => {
             </Link>
 
             <Link
-              to="/courses"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`block px-3 py-2.5 rounded-lg text-base font-semibold ${
-                isActive('/courses')
+              to="/track"
+              className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                isActive('/track')
                   ? 'text-[#104A96] bg-[#F1F7FF]'
-                  : 'text-slate-800 hover:bg-slate-50'
+                  : 'text-slate-700 hover:text-[#104A96] hover:bg-slate-50'
               }`}
             >
-              Courses
+              <Search className="w-3.5 h-3.5 text-[#FF8500]" />
+              <span>Track Status</span>
             </Link>
 
             <Link
@@ -350,14 +351,25 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
 
-                <Link
-                  to="/dashboard"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#104A96] text-white font-bold text-xs shadow-xs"
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Go to Customer Dashboard</span>
-                </Link>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#104A96] text-white font-bold text-xs shadow-xs"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Go to Customer Dashboard</span>
+                  </Link>
+
+                  <Link
+                    to="/track"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Track Applications Status</span>
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
@@ -380,6 +392,15 @@ export const Navbar: React.FC = () => {
                     <span>Register Free</span>
                   </Link>
                 </div>
+
+                <Link
+                  to="/track"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 font-bold text-xs shadow-2xs"
+                >
+                  <Search className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Track Application Status</span>
+                </Link>
               </div>
             )}
           </div>
@@ -435,6 +456,27 @@ export const Navbar: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Track Application Status in Mobile Navigation */}
+            <Link
+              to="/track"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-base font-semibold ${
+                isActive('/track')
+                  ? 'text-[#104A96] bg-[#F1F7FF]'
+                  : 'text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-orange-100 text-[#FF8500] flex items-center justify-center">
+                  <Search className="w-4 h-4" />
+                </div>
+                <span>Track Application Status</span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Live Status
+              </span>
+            </Link>
 
             <Link
               to="/courses"

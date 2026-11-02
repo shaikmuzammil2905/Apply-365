@@ -239,11 +239,8 @@ export const AadhaarApplicationPage: React.FC = () => {
         serviceId: 'aadhaar',
         serviceTitle: 'Aadhaar Card Service',
         status: 'Submitted',
-        submissionDate: now.toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        }) + ' at ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        submissionDate: now.toISOString(),
+        createdAt: now.toISOString(),
         formData,
         documents,
         updatedAt: now.toISOString(),

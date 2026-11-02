@@ -135,6 +135,11 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
+                <Link to="/track" className="text-slate-300 hover:text-white transition-colors font-semibold text-orange-400">
+                  Track Application Status
+                </Link>
+              </li>
+              <li>
                 <Link to="/about" className="text-slate-300 hover:text-white transition-colors">
                   About Us
                 </Link>

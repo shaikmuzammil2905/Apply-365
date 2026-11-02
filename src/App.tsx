@@ -17,6 +17,7 @@ import { PhoneCall } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { AllServicesPage } from './pages/AllServicesPage';
 import { ServiceDetailPage } from './pages/ServiceDetailPage';
+import { TrackApplicationPage } from './pages/TrackApplicationPage';
 import { CoursesPage } from './pages/CoursesPage';
 import { CourseDetailPage } from './pages/CourseDetailPage';
 import { DocumentsRequiredPage } from './pages/DocumentsRequiredPage';
@@ -123,6 +124,11 @@ const AppContent: React.FC = () => {
           <Route path="/services/esi" element={<ServiceDetailPage />} />
           <Route path="/services/esi-details-update" element={<ServiceDetailPage />} />
           <Route path="/services/passport" element={<ServiceDetailPage />} />
+
+          {/* Public Application Tracking */}
+          <Route path="/track" element={<TrackApplicationPage />} />
+          <Route path="/track-status" element={<TrackApplicationPage />} />
+          <Route path="/track/:id" element={<TrackApplicationPage />} />
 
           {/* Informational Pages */}
           <Route path="/documents-required" element={<DocumentsRequiredPage />} />
