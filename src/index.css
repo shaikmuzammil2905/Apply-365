@@ -66,6 +66,27 @@
   transform: translateY(-4px);
 }
 
+/* Auto-scrolling ticker bar right-to-left with pause on hover */
+@keyframes tickerMarquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker-marquee {
+  display: flex;
+  width: max-content;
+  animation: tickerMarquee 38s linear infinite;
+  will-change: transform;
+}
+
+.animate-ticker-marquee:hover {
+  animation-play-state: paused;
+}
+
 /* Print Styles */
 @media print {
   header, footer, .no-print, button, .floating-actions {

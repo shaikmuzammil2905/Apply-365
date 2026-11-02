@@ -100,11 +100,11 @@ export const Hero: React.FC = () => {
                   width: '28%',
                   height: '7.8%',
                 }}
-                className="absolute group rounded-xl transition-all duration-200 hover:ring-2 hover:ring-[#FF8500] hover:ring-offset-1 focus:outline-none focus:ring-2 focus:ring-[#104A96] flex items-center justify-end pr-2"
+                className="absolute group rounded-xl transition-all duration-200 focus:outline-none flex items-center justify-end pr-2"
                 title={`Open ${service.title} Application`}
                 aria-label={`Open ${service.title} Application`}
               >
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#07366F] text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-lg mr-2 whitespace-nowrap flex items-center gap-1">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#07366F]/90 backdrop-blur-xs text-white text-[11px] font-bold px-2 py-0.5 rounded shadow mr-2 whitespace-nowrap flex items-center gap-1">
                   <span>Open Service</span>
                   <ChevronRight className="w-3 h-3 text-[#FF8500]" />
                 </div>

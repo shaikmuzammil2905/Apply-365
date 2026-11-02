@@ -44,7 +44,11 @@ export const DocumentsRequiredPage: React.FC = () => {
     getServices().then(setServices);
     const handleSync = () => getServices().then(setServices);
     window.addEventListener('apply365_data_sync', handleSync);
-    return () => window.removeEventListener('apply365_data_sync', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('apply365_data_sync', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, []);
 
   // State for which service accordions are expanded (default all true)

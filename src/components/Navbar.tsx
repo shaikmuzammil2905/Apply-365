@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebsiteSettings } from '../context/SettingsContext';
+import { TopAnnouncementBar } from './TopAnnouncementBar';
 import { 
   ChevronDown, 
   Menu, 
@@ -80,27 +81,26 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header 
-      className={`sticky top-0 z-50 transition-all duration-300 bg-white/95 backdrop-blur-md border-b border-slate-200/80 ${
-        isScrolled ? 'shadow-md py-2' : 'py-2 sm:py-2.5'
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between">
-          
-          {/* Logo - Clean transparent, clearly visible, zero patchwork */}
-          <Link to="/" className="flex items-center gap-2 group focus:outline-none transition-transform duration-200 hover:scale-[1.02]">
-            <img 
-              src={settings.logoUrl || "/apply365_transparent_logo.png"} 
-              alt={settings.siteName || "Apply365 — Services for People"} 
-              className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm max-w-[200px]"
-            />
-            {showTagline && (
-              <span className="hidden 2xl:inline-block text-[11px] font-semibold text-slate-500 border-l border-slate-200 pl-2.5 max-w-[220px] truncate leading-tight">
-                {settings.tagline}
-              </span>
-            )}
-          </Link>
+    <>
+      {/* Top Announcement Bar (Auto-scrolling marquee above header) */}
+      <TopAnnouncementBar />
+
+      <header 
+        className={`sticky top-0 z-50 transition-all duration-300 bg-white/95 backdrop-blur-md border-b border-slate-200/80 ${
+          isScrolled ? 'shadow-md py-2' : 'py-2 sm:py-2.5'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            
+            {/* Logo - Clean transparent, clearly visible, zero patchwork */}
+            <Link to="/" className="flex items-center gap-2 group focus:outline-none transition-transform duration-200 hover:scale-[1.02]">
+              <img 
+                src={settings.logoUrl || "/apply365_transparent_logo.png"} 
+                alt={settings.siteName || "Apply365 — Services for People"} 
+                className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm max-w-[200px]"
+              />
+            </Link>
 
           {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
@@ -578,6 +578,7 @@ export const Navbar: React.FC = () => {
         </div>
       )}
     </header>
+    </>
   );
 };
 

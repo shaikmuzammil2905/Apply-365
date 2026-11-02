@@ -84,9 +84,11 @@ export const ServiceDetailPage: React.FC = () => {
     };
 
     window.addEventListener('apply365_data_sync', handleSync);
+    window.addEventListener('storage', handleSync);
     return () => {
       isMounted = false;
       window.removeEventListener('apply365_data_sync', handleSync);
+      window.removeEventListener('storage', handleSync);
     };
   }, [activeSlug]);
 
@@ -107,6 +109,7 @@ export const ServiceDetailPage: React.FC = () => {
   const [submittedApp, setSubmittedApp] = useState<CustomerApplication | null>(null);
   const [copiedId, setCopiedId] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [showInfoAccordion, setShowInfoAccordion] = useState(false);
@@ -181,9 +184,98 @@ export const ServiceDetailPage: React.FC = () => {
   const activeService = service || getInitialServiceBySlug(activeSlug);
   const IconComponent = iconMap[activeService.iconName] || Fingerprint;
 
-  const handleInputChange = (field: string, value: any) => {
+  const validateField = (fieldName: string, rawVal: any): string => {
+    const val = rawVal ? String(rawVal).trim() : '';
+    const lower = fieldName.toLowerCase();
+
+    // 1. Aadhaar Number (strictly 12 digits, numbers only)
+    if (lower.includes('aadhaar')) {
+      if (!val) return '';
+      const digits = val.replace(/\D/g, '');
+      if (digits.length !== 12) {
+        return 'Aadhaar number must be exactly 12 digits';
+      }
+    }
+
+    // 2. PIN Code (strictly 6 digits, numbers only)
+    if (lower.includes('pincode') || lower.includes('pin') || lower.includes('postal')) {
+      if (!val) return '';
+      const digits = val.replace(/\D/g, '');
+      if (digits.length !== 6) {
+        return 'PIN Code must be exactly 6 digits';
+      }
+    }
+
+    // 3. Mobile Number (strictly 10 digits starting with 6, 7, 8, 9)
+    if (lower.includes('mobile') || lower.includes('phone')) {
+      if (!val) return '';
+      const digits = val.replace(/\D/g, '');
+      if (digits.length !== 10) {
+        return 'Mobile number must be exactly 10 digits';
+      }
+      if (!/^[6-9]\d{9}$/.test(digits)) {
+        return 'Mobile number must start with 6, 7, 8, or 9';
+      }
+    }
+
+    // 4. Date of Birth (cannot be in the future)
+    if (lower === 'dob' || lower.includes('birth')) {
+      if (!val) return '';
+      const selectedDate = new Date(val);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (isNaN(selectedDate.getTime())) {
+        return 'Please select a valid date';
+      }
+      if (selectedDate > today) {
+        return 'Date of birth cannot be in the future';
+      }
+    }
+
+    // 5. PAN Number (10 alphanumeric characters)
+    if (lower.includes('pan') && !lower.includes('company') && !lower.includes('expand')) {
+      if (!val) return '';
+      const panClean = val.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (panClean.length !== 10 || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panClean)) {
+        return 'PAN must be 10 characters (e.g. ABCDE1234F)';
+      }
+    }
+
+    // 6. Email validation
+    if (lower.includes('email')) {
+      if (!val) return '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        return 'Please enter a valid email address';
+      }
+    }
+
+    return '';
+  };
+
+  const handleInputChange = (field: string, rawValue: any) => {
+    let value = rawValue;
+    const lower = field.toLowerCase();
+
+    // Prevent non-digits and extra characters from being entered
+    if (lower.includes('aadhaar')) {
+      value = String(rawValue).replace(/\D/g, '').slice(0, 12);
+    } else if (lower.includes('pincode') || lower.includes('pin') || lower.includes('postal')) {
+      value = String(rawValue).replace(/\D/g, '').slice(0, 6);
+    } else if (lower.includes('mobile') || lower.includes('phone')) {
+      value = String(rawValue).replace(/\D/g, '').slice(0, 10);
+    } else if (lower.includes('pan') && !lower.includes('company') && !lower.includes('expand')) {
+      value = String(rawValue).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+    }
+
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errorMsg) setErrorMsg('');
+
+    // Real-time error evaluation
+    const fieldErr = validateField(field, value);
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: fieldErr,
+    }));
   };
 
   const toggleChecklistDoc = (docName: string) => {
@@ -251,13 +343,26 @@ export const ServiceDetailPage: React.FC = () => {
     e.preventDefault();
     setErrorMsg('');
 
-    // Field validation
+    // Comprehensive Field Validation
+    const errors: Record<string, string> = {};
     for (const f of config.fields) {
-      if (f.required && !formData[f.name]) {
-        setErrorMsg(`Please fill in "${f.label}" before submitting.`);
-        window.scrollTo({ top: 350, behavior: 'smooth' });
-        return;
+      const val = formData[f.name];
+      if (f.required && (!val || String(val).trim() === '')) {
+        errors[f.name] = `${f.label} is required.`;
+      } else if (val) {
+        const customErr = validateField(f.name, val);
+        if (customErr) {
+          errors[f.name] = customErr;
+        }
       }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstMsg = Object.values(errors)[0];
+      setErrorMsg(firstMsg || 'Please correct the highlighted fields in red before submitting.');
+      window.scrollTo({ top: 380, behavior: 'smooth' });
+      return;
     }
 
     setIsSubmitting(true);
@@ -623,20 +728,85 @@ export const ServiceDetailPage: React.FC = () => {
                     );
                   }
 
+                  const lower = field.name.toLowerCase();
+                  const err = fieldErrors[field.name];
+                  const hasError = !!err;
+                  const isAadhaar = lower.includes('aadhaar');
+                  const isPincode = lower.includes('pincode') || lower.includes('pin') || lower.includes('postal');
+                  const isMobile = lower.includes('mobile') || lower.includes('phone');
+                  const isDate = field.type === 'date' || lower === 'dob' || lower.includes('birth');
+                  const isPan = lower.includes('pan') && !lower.includes('company') && !lower.includes('expand');
+
+                  const maxDate = isDate ? new Date().toISOString().split('T')[0] : undefined;
+                  const maxLength = isAadhaar ? 12 : isPincode ? 6 : isMobile ? 10 : isPan ? 10 : undefined;
+                  const inputMode = (isAadhaar || isPincode) ? 'numeric' : isMobile ? 'tel' : undefined;
+
                   return (
                     <div key={field.name} className={isSpan2 ? 'sm:col-span-2' : ''}>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                        {field.label} {field.required && <span className="text-red-500">*</span>}
-                      </label>
-                      <input
-                        type={field.type}
-                        name={field.name}
-                        value={formData[field.name] || ''}
-                        onChange={(e) => handleInputChange(field.name, e.target.value)}
-                        required={field.required}
-                        placeholder={field.placeholder}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] text-slate-800"
-                      />
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                          {field.label} {field.required && <span className="text-red-500">*</span>}
+                        </label>
+                        {isAadhaar && (
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
+                            formData[field.name]?.length === 12 
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                              : hasError 
+                                ? 'bg-red-100 text-red-800 border border-red-200' 
+                                : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {formData[field.name]?.length || 0} / 12 Digits
+                          </span>
+                        )}
+                        {isPincode && (
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
+                            formData[field.name]?.length === 6 
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                              : hasError 
+                                ? 'bg-red-100 text-red-800 border border-red-200' 
+                                : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {formData[field.name]?.length || 0} / 6 Digits
+                          </span>
+                        )}
+                        {isMobile && (
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
+                            formData[field.name]?.length === 10 
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                              : hasError 
+                                ? 'bg-red-100 text-red-800 border border-red-200' 
+                                : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {formData[field.name]?.length || 0} / 10 Digits
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          type={isDate ? 'date' : field.type}
+                          name={field.name}
+                          value={formData[field.name] || ''}
+                          onChange={(e) => handleInputChange(field.name, e.target.value)}
+                          required={field.required}
+                          max={maxDate}
+                          maxLength={maxLength}
+                          inputMode={inputMode}
+                          placeholder={field.placeholder}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 ${
+                            hasError
+                              ? 'border-red-500 ring-2 ring-red-200 bg-red-50/20 text-red-900 focus:ring-red-500'
+                              : 'border-slate-200 focus:ring-[#104A96] text-slate-800 bg-white'
+                          }`}
+                        />
+                      </div>
+
+                      {hasError && (
+                        <p className="mt-1.5 text-xs text-red-600 font-semibold flex items-center gap-1.5 animate-in fade-in">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+                          <span>{err}</span>
+                        </p>
+                      )}
                     </div>
                   );
                 })}

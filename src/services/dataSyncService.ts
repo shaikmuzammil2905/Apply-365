@@ -278,8 +278,9 @@ if (typeof window !== 'undefined') {
         try {
           const { data } = await supabase.from('services').select('*').order('display_order', { ascending: true });
           if (data && data.length > 0) {
-            setStored(SERVICES_KEY, data);
-            notifyDataChange('services', data);
+            const mapped = data.map((item: any) => mapServiceFromDb(item));
+            setStored(SERVICES_KEY, mapped);
+            notifyDataChange('services', mapped);
           }
         } catch (e) {
           console.warn('Realtime sync services fetch failed:', e);
@@ -481,6 +482,54 @@ export function getDefaultSubServices(slug: string): SubServiceOption[] {
   ];
 }
 
+export function mapServiceFromDb(item: any, cachedAll: ServiceDetail[] = []): ServiceDetail {
+  if (!item) return initialServicesData[0];
+
+  // 1. Check for fallback storage in faqs JSONB column
+  const faqsStorage = Array.isArray(item.faqs) 
+    ? item.faqs.find((f: any) => f.question === '__sub_services_storage__') 
+    : null;
+  let parsedSubServices: SubServiceOption[] | null = null;
+  if (faqsStorage && faqsStorage.answer) {
+    try {
+      parsedSubServices = JSON.parse(faqsStorage.answer);
+    } catch {}
+  }
+  const cleanFaqs = Array.isArray(item.faqs) 
+    ? item.faqs.filter((f: any) => f.question !== '__sub_services_storage__') 
+    : [];
+
+  // 2. Check cached subServices in localStorage
+  const cachedSvc = cachedAll.find(s => s.id === item.id || s.slug === item.slug);
+  const cachedSubs = cachedSvc?.subServices && cachedSvc.subServices.length > 0 
+    ? cachedSvc.subServices 
+    : null;
+
+  // Resolve subServices with priority: direct column -> fallback faqs storage -> cache -> statutory default
+  const resolvedSubServices = 
+    (item.sub_services && item.sub_services.length > 0 ? item.sub_services : null) ||
+    (parsedSubServices && parsedSubServices.length > 0 ? parsedSubServices : null) ||
+    cachedSubs ||
+    getDefaultSubServices(item.slug);
+
+  return {
+    id: item.id || item.slug,
+    slug: item.slug || item.id,
+    title: item.title,
+    shortDescription: item.short_description ?? item.shortDescription ?? '',
+    fullDescription: item.full_description ?? item.fullDescription ?? item.short_description ?? item.shortDescription ?? '',
+    accentColor: item.accent_color || item.accentColor || '#104A96',
+    badge: item.badge || 'Popular',
+    iconName: item.icon_name || item.iconName || 'FileText',
+    subServices: resolvedSubServices,
+    documents: Array.isArray(item.documents) ? item.documents : [],
+    officialDisclaimer: item.official_disclaimer ?? item.officialDisclaimer ?? 'Acceptable proof depends on current statutory requirements.',
+    benefits: Array.isArray(item.benefits) ? item.benefits : [],
+    processSteps: Array.isArray(item.process_steps) ? item.process_steps : Array.isArray(item.processSteps) ? item.processSteps : [],
+    faqs: cleanFaqs
+  };
+}
+
 export async function getServices(): Promise<ServiceDetail[]> {
   try {
     const { data, error } = await supabase
@@ -490,52 +539,7 @@ export async function getServices(): Promise<ServiceDetail[]> {
 
     if (!error && data && data.length > 0) {
       const cachedAll = getStored<ServiceDetail[]>(SERVICES_KEY, []);
-
-      const services: ServiceDetail[] = data.map((item: any) => {
-        // 1. Check for fallback storage in faqs JSONB column
-        const faqsStorage = Array.isArray(item.faqs) 
-          ? item.faqs.find((f: any) => f.question === '__sub_services_storage__') 
-          : null;
-        let parsedSubServices: SubServiceOption[] | null = null;
-        if (faqsStorage && faqsStorage.answer) {
-          try {
-            parsedSubServices = JSON.parse(faqsStorage.answer);
-          } catch {}
-        }
-        const cleanFaqs = Array.isArray(item.faqs) 
-          ? item.faqs.filter((f: any) => f.question !== '__sub_services_storage__') 
-          : [];
-
-        // 2. Check cached subServices in localStorage
-        const cachedSvc = cachedAll.find(s => s.id === item.id || s.slug === item.slug);
-        const cachedSubs = cachedSvc?.subServices && cachedSvc.subServices.length > 0 
-          ? cachedSvc.subServices 
-          : null;
-
-        // Resolve subServices with priority: direct column -> fallback faqs storage -> cache -> statutory default
-        const resolvedSubServices = 
-          (item.sub_services && item.sub_services.length > 0 ? item.sub_services : null) ||
-          (parsedSubServices && parsedSubServices.length > 0 ? parsedSubServices : null) ||
-          cachedSubs ||
-          getDefaultSubServices(item.slug);
-
-        return {
-          id: item.id,
-          slug: item.slug,
-          title: item.title,
-          shortDescription: item.short_description || item.shortDescription,
-          fullDescription: item.full_description || item.fullDescription,
-          accentColor: item.accent_color || item.accentColor || '#104A96',
-          badge: item.badge || 'Popular',
-          iconName: item.icon_name || item.iconName || 'FileText',
-          subServices: resolvedSubServices,
-          documents: item.documents || [],
-          officialDisclaimer: item.official_disclaimer || item.officialDisclaimer || '',
-          benefits: item.benefits || [],
-          processSteps: item.process_steps || item.processSteps || [],
-          faqs: cleanFaqs
-        };
-      });
+      const services: ServiceDetail[] = data.map((item: any) => mapServiceFromDb(item, cachedAll));
 
       setStored(SERVICES_KEY, services);
       return services;
@@ -545,17 +549,16 @@ export async function getServices(): Promise<ServiceDetail[]> {
   }
 
   const cached = getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
-  return cached.map(svc => ({
-    ...svc,
-    subServices: svc.subServices && svc.subServices.length > 0 ? svc.subServices : getDefaultSubServices(svc.slug)
-  }));
+  return cached.map(svc => mapServiceFromDb(svc));
 }
 
 export function getInitialServiceBySlug(slug: string): ServiceDetail {
   const cached = getStored<ServiceDetail[]>(SERVICES_KEY, initialServicesData);
+  const normalizedCached = cached.map(s => mapServiceFromDb(s));
+
   if (!slug) {
-    const first = cached[0] || initialServicesData[0];
-    return { ...first, subServices: first.subServices || getDefaultSubServices(first.slug) };
+    const first = normalizedCached[0] || initialServicesData[0];
+    return mapServiceFromDb(first);
   }
   const raw = slug.toLowerCase().trim();
 
@@ -569,14 +572,14 @@ export function getInitialServiceBySlug(slug: string): ServiceDetail {
     raw === 'esi-details-update' || raw === 'esi' || raw.includes('esi') ? 'esi' :
     raw;
 
-  const found = cached.find(s => s.slug === normalized || s.id === normalized || s.slug === raw || s.id === raw);
+  const found = normalizedCached.find(s => s.slug === normalized || s.id === normalized || s.slug === raw || s.id === raw);
   if (found) {
-    return { ...found, subServices: found.subServices || getDefaultSubServices(found.slug) };
+    return mapServiceFromDb(found);
   }
 
-  const partial = cached.find(s => s.slug.includes(normalized) || normalized.includes(s.slug));
-  const res = partial || cached[0] || initialServicesData[0];
-  return { ...res, subServices: res.subServices || getDefaultSubServices(res.slug) };
+  const partial = normalizedCached.find(s => s.slug.includes(normalized) || normalized.includes(s.slug));
+  const res = partial || normalizedCached[0] || initialServicesData[0];
+  return mapServiceFromDb(res);
 }
 
 export async function getServiceBySlug(slug: string): Promise<ServiceDetail> {

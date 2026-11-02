@@ -107,7 +107,11 @@ export const HomePage: React.FC = () => {
     };
 
     window.addEventListener('apply365_data_sync', handleSync);
-    return () => window.removeEventListener('apply365_data_sync', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('apply365_data_sync', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, []);
 
   return (
