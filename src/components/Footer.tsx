@@ -10,8 +10,24 @@ import {
   ExternalLink,
   ArrowRight
 } from 'lucide-react';
+import { useWebsiteSettings } from '../context/SettingsContext';
 
 export const Footer: React.FC = () => {
+  const { settings } = useWebsiteSettings();
+  const rawPhone = settings.phone || '+91 91219 92365';
+  const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+  const rawWa = settings.whatsapp || '+91 91219 92365';
+  const cleanWa = rawWa.replace(/[^0-9]/g, '');
+  const supportEmail = settings.supportEmail || settings.email || 'support@apply365.in';
+  const bHours = settings.businessHours;
+
+  const showTagline = settings.tagline && settings.contactVisibility?.showTaglineFooter !== false;
+  const showAltPhone = settings.alternatePhone && settings.contactVisibility?.showAlternatePhone;
+
+  // Compute concise hours summary
+  const hoursSummary = bHours?.isTemporarilyClosed 
+    ? (bHours.temporaryClosureReason || 'Temporarily Closed')
+    : `Mon – Sat: ${bHours?.monday?.openTime || '9:00'} AM – ${bHours?.monday?.closeTime || '7:00'} PM`;
   return (
     <footer className="bg-[#07366F] text-slate-200 pt-16 pb-12 border-t-4 border-[#FF8500]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -23,14 +39,20 @@ export const Footer: React.FC = () => {
           <div className="lg:col-span-4 space-y-4">
             <Link to="/" className="inline-block transition-transform duration-200 hover:scale-[1.02]">
               <img 
-                src="/apply365_logo_white.png" 
-                alt="Apply365 — Services for People" 
-                className="h-11 sm:h-12 w-auto object-contain filter drop-shadow"
+                src={settings.logoUrl || "/apply365_logo_white.png"} 
+                alt={settings.siteName || "Apply365 — Services for People"} 
+                className="h-11 sm:h-12 w-auto object-contain filter drop-shadow max-w-[220px]"
               />
             </Link>
             
+            {showTagline && (
+              <p className="text-xs text-[#FF8500] font-semibold tracking-wide">
+                {settings.tagline}
+              </p>
+            )}
+
             <p className="text-sm text-slate-300 leading-relaxed">
-              <strong className="text-white font-semibold">Apply365</strong> — Services for People. We provide fast, dependable, and hassle-free document preparation, verification, and procedural guidance for essential Indian civic and commercial documentation.
+              <strong className="text-white font-semibold">{settings.siteName || 'Apply365 — Services for People'}</strong>. We provide fast, dependable, and hassle-free document preparation, verification, and procedural guidance for essential Indian civic and commercial documentation.
             </p>
 
             <div className="pt-2 flex flex-wrap gap-2">
@@ -170,43 +192,53 @@ export const Footer: React.FC = () => {
             
             <div className="space-y-2.5 text-sm text-slate-300">
               <a 
-                href="tel:+919876543210" 
+                href={`tel:+${cleanPhone}`} 
                 className="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
               >
                 <Phone className="w-4 h-4 text-[#FF8500] shrink-0" />
-                <span>+91 98765 43210</span>
+                <span>{rawPhone}</span>
               </a>
 
+              {showAltPhone && (
+                <a 
+                  href={`tel:+${settings.alternatePhone?.replace(/[^0-9]/g, '')}`} 
+                  className="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>Alt: {settings.alternatePhone}</span>
+                </a>
+              )}
+
               <a 
-                href="https://wa.me/919876543210?text=Hi%20Apply365,%20I%20need%20assistance%20with%20documentation" 
+                href={`https://wa.me/${cleanWa}?text=Hi%20Apply365,%20I%20need%20assistance%20with%20documentation`} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 p-2 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 transition-colors border border-emerald-800/40"
               >
                 <MessageSquare className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>WhatsApp Helpline</span>
+                <span>WhatsApp Helpline ({rawWa})</span>
               </a>
 
               <a 
-                href="mailto:support@apply365.in" 
+                href={`mailto:${supportEmail}`} 
                 className="flex items-center gap-3 p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
               >
                 <Mail className="w-4 h-4 text-[#FF8500] shrink-0" />
-                <span>support@apply365.in</span>
+                <span>{supportEmail}</span>
               </a>
 
               <div className="flex items-start gap-3 p-2 rounded-lg bg-white/5">
                 <Clock className="w-4 h-4 text-[#FF8500] shrink-0 mt-0.5" />
                 <div>
                   <div className="text-white font-medium text-xs">Working Hours</div>
-                  <div className="text-xs text-slate-300">Mon – Sat: 9:30 AM – 7:00 PM IST</div>
+                  <div className="text-xs text-slate-300">{hoursSummary}</div>
                 </div>
               </div>
 
               <div className="flex items-start gap-3 p-2 rounded-lg bg-white/5">
                 <MapPin className="w-4 h-4 text-[#FF8500] shrink-0 mt-0.5" />
                 <div className="text-xs text-slate-300">
-                  Andhra Pradesh & Telangana Support Hub
+                  {settings.address || 'Plot 42, Hitech City Main Road, Madhapur, Hyderabad, Telangana - 500081'}
                 </div>
               </div>
             </div>

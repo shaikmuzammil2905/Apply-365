@@ -70,12 +70,47 @@ export interface Lead {
   updatedAt: string;
 }
 
+export interface DayBusinessHours {
+  isOpen: boolean;
+  openTime: string; // e.g. "09:00"
+  closeTime: string; // e.g. "19:00"
+}
+
+export interface BusinessHoursConfig {
+  timezone: string; // default "Asia/Kolkata"
+  isTemporarilyClosed?: boolean;
+  temporaryClosureReason?: string;
+  specialHolidayNote?: string;
+  monday: DayBusinessHours;
+  tuesday: DayBusinessHours;
+  wednesday: DayBusinessHours;
+  thursday: DayBusinessHours;
+  friday: DayBusinessHours;
+  saturday: DayBusinessHours;
+  sunday: DayBusinessHours;
+}
+
+export interface ContactVisibilitySettings {
+  showTaglineHeader: boolean;
+  showTaglineFooter: boolean;
+  showTaglinePortal: boolean;
+  showTaglineInvoice: boolean;
+  showCallButton: boolean;
+  showWhatsAppButton: boolean;
+  showAlternatePhone: boolean;
+}
+
 export interface WebsiteSettings {
   id?: string;
   siteName: string;
+  tagline?: string;
   phone: string;
+  alternatePhone?: string;
   whatsapp: string;
+  customerSupportPhone?: string;
   email: string;
+  supportEmail?: string;
+  customerServiceEmail?: string;
   address: string;
   logoUrl: string;
   seoTitle: string;
@@ -86,7 +121,10 @@ export interface WebsiteSettings {
     instagram?: string;
     linkedin?: string;
     youtube?: string;
+    extraSettings?: any;
   };
+  businessHours?: BusinessHoursConfig;
+  contactVisibility?: ContactVisibilitySettings;
   updatedAt: string;
 }
 

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Breadcrumbs } from '../components/Breadcrumbs';
-import { servicesData } from '../data/servicesData';
+import { getServices } from '../services/dataSyncService';
+import { ServiceDetail } from '../types/services';
+import { useWebsiteSettings } from '../context/SettingsContext';
 import { 
   Phone, 
   Mail, 
@@ -10,16 +12,30 @@ import {
   Send, 
   CheckCircle2, 
   ShieldCheck, 
-  HelpCircle 
+  HelpCircle,
+  Calendar
 } from 'lucide-react';
 
 export const ContactPage: React.FC = () => {
+  const { settings } = useWebsiteSettings();
+  const [services, setServices] = useState<ServiceDetail[]>([]);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [service, setService] = useState('aadhaar');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    getServices().then(setServices);
+  }, []);
+
+  const rawPhone = settings.phone || '+91 91219 92365';
+  const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+  const rawWa = settings.whatsapp || '+91 91219 92365';
+  const cleanWa = rawWa.replace(/[^0-9]/g, '');
+  const supportEmail = settings.supportEmail || settings.email || 'support@apply365.in';
+  const bHours = settings.businessHours;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,11 +47,11 @@ export const ContactPage: React.FC = () => {
     setSubmitted(true);
   };
 
-  const selectedServiceObj = servicesData.find(s => s.id === service);
+  const selectedServiceObj = services.find(s => s.id === service || s.slug === service);
 
   const getWhatsAppContactUrl = () => {
     const text = `Hi Apply365, my name is ${name || 'Customer'}. I am contacting you regarding ${selectedServiceObj?.title || 'Documentation Services'}. ${message ? 'Message: ' + message : ''}`;
-    return `https://wa.me/919876543210?text=${encodeURIComponent(text)}`;
+    return `https://wa.me/${cleanWa}?text=${encodeURIComponent(text)}`;
   };
 
   return (
@@ -77,7 +93,7 @@ export const ContactPage: React.FC = () => {
                 
                 {/* Phone Call */}
                 <a 
-                  href="tel:+919876543210"
+                  href={`tel:+${cleanPhone}`}
                   className="flex items-start gap-4 p-4 rounded-2xl bg-[#F8FBFF] hover:bg-blue-50 border border-blue-100/60 transition-colors group"
                 >
                   <div className="w-12 h-12 rounded-xl bg-[#104A96] text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
@@ -85,14 +101,14 @@ export const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Phone Support</div>
-                    <div className="text-base font-bold text-slate-900">+91 98765 43210</div>
+                    <div className="text-base font-bold text-slate-900">{rawPhone}</div>
                     <div className="text-xs text-slate-500 mt-0.5">Click to dial directly</div>
                   </div>
                 </a>
 
                 {/* WhatsApp */}
                 <a 
-                  href="https://wa.me/919876543210?text=Hi%20Apply365,%20I%20have%20an%20enquiry%20regarding%20documentation%20services"
+                  href={`https://wa.me/${cleanWa}?text=Hi%20Apply365,%20I%20have%20an%20enquiry%20regarding%20documentation%20services`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-start gap-4 p-4 rounded-2xl bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200/60 transition-colors group"
@@ -102,14 +118,14 @@ export const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-xs font-bold uppercase tracking-wider text-emerald-800">WhatsApp Chat</div>
-                    <div className="text-base font-bold text-emerald-950">+91 98765 43210</div>
+                    <div className="text-base font-bold text-emerald-950">{rawWa}</div>
                     <div className="text-xs text-emerald-700 mt-0.5">Instant response during working hours</div>
                   </div>
                 </a>
 
                 {/* Email */}
                 <a 
-                  href="mailto:support@apply365.in"
+                  href={`mailto:${supportEmail}`}
                   className="flex items-start gap-4 p-4 rounded-2xl bg-[#F8FBFF] hover:bg-blue-50 border border-blue-100/60 transition-colors group"
                 >
                   <div className="w-12 h-12 rounded-xl bg-[#07366F] text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
@@ -117,8 +133,8 @@ export const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Email Enquiries</div>
-                    <div className="text-base font-bold text-slate-900">support@apply365.in</div>
-                    <div className="text-xs text-slate-500 mt-0.5">For corporate or complex queries</div>
+                    <div className="text-base font-bold text-slate-900">{supportEmail}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">Official support correspondence</div>
                   </div>
                 </a>
 
@@ -129,16 +145,36 @@ export const ContactPage: React.FC = () => {
                 <div className="flex items-start gap-3 text-xs sm:text-sm text-slate-600">
                   <Clock className="w-4 h-4 text-[#FF8500] shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-800 block">Working Hours</strong>
-                    <span>Monday to Saturday: 9:30 AM – 7:00 PM IST (Closed on Public Holidays)</span>
+                    <strong className="text-slate-800 block">Weekly Working Schedule ({bHours?.timezone || 'Asia/Kolkata'})</strong>
+                    {bHours?.isTemporarilyClosed ? (
+                      <span className="text-amber-600 font-semibold">{bHours.temporaryClosureReason || 'Temporarily Closed'}</span>
+                    ) : (
+                      <div className="mt-1 space-y-1 text-xs">
+                        <div className="flex justify-between gap-4">
+                          <span>Monday – Friday:</span>
+                          <span className="font-semibold">{bHours?.monday?.isOpen ? `${bHours.monday.openTime} – ${bHours.monday.closeTime}` : 'Closed'}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span>Saturday:</span>
+                          <span className="font-semibold">{bHours?.saturday?.isOpen ? `${bHours.saturday.openTime} – ${bHours.saturday.closeTime}` : 'Closed'}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span>Sunday:</span>
+                          <span className="font-semibold text-slate-500">{bHours?.sunday?.isOpen ? `${bHours.sunday.openTime} – ${bHours.sunday.closeTime}` : 'Holiday (WhatsApp Support Only)'}</span>
+                        </div>
+                      </div>
+                    )}
+                    {bHours?.specialHolidayNote && (
+                      <div className="text-[11px] text-slate-400 mt-1 italic">{bHours.specialHolidayNote}</div>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 text-xs sm:text-sm text-slate-600">
                   <MapPin className="w-4 h-4 text-[#FF8500] shrink-0 mt-0.5" />
                   <div>
-                    <strong className="text-slate-800 block">Service Coverage Hub</strong>
-                    <span>Andhra Pradesh & Telangana Regional Assistance Network</span>
+                    <strong className="text-slate-800 block">Official Registered Address</strong>
+                    <span>{settings.address || 'Plot 42, Hitech City Main Road, Madhapur, Hyderabad, Telangana - 500081'}</span>
                   </div>
                 </div>
               </div>
@@ -234,7 +270,7 @@ export const ContactPage: React.FC = () => {
                         onChange={(e) => setService(e.target.value)}
                         className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
                       >
-                        {servicesData.map((s) => (
+                        {services.map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.title}
                           </option>

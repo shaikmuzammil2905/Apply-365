@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useWebsiteSettings } from '../context/SettingsContext';
 import { 
   ChevronDown, 
   Menu, 
@@ -40,11 +41,20 @@ const serviceNavItems: ServiceNavItem[] = [
 
 export const Navbar: React.FC = () => {
   const { currentUser, isAuthenticated, logout } = useAuth();
+  const { settings } = useWebsiteSettings();
   const [isScrolled, setIsScrolled] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
   const location = useLocation();
+
+  const rawPhone = settings.phone || '+91 91219 92365';
+  const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+  const rawWa = settings.whatsapp || '+91 91219 92365';
+  const cleanWa = rawWa.replace(/[^0-9]/g, '');
+  const showCall = settings.contactVisibility?.showCallButton !== false;
+  const showWa = settings.contactVisibility?.showWhatsAppButton !== false;
+  const showTagline = settings.tagline && settings.contactVisibility?.showTaglineHeader !== false;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -79,12 +89,17 @@ export const Navbar: React.FC = () => {
         <div className="flex items-center justify-between">
           
           {/* Logo - Clean transparent, clearly visible, zero patchwork */}
-          <Link to="/" className="flex items-center group focus:outline-none transition-transform duration-200 hover:scale-[1.02]">
+          <Link to="/" className="flex items-center gap-2 group focus:outline-none transition-transform duration-200 hover:scale-[1.02]">
             <img 
-              src="/apply365_transparent_logo.png" 
-              alt="Apply365 — Services for People" 
-              className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm"
+              src={settings.logoUrl || "/apply365_transparent_logo.png"} 
+              alt={settings.siteName || "Apply365 — Services for People"} 
+              className="h-10 sm:h-12 w-auto object-contain drop-shadow-sm max-w-[200px]"
             />
+            {showTagline && (
+              <span className="hidden 2xl:inline-block text-[11px] font-semibold text-slate-500 border-l border-slate-200 pl-2.5 max-w-[220px] truncate leading-tight">
+                {settings.tagline}
+              </span>
+            )}
           </Link>
 
           {/* Desktop Navigation Links */}
@@ -222,28 +237,32 @@ export const Navbar: React.FC = () => {
           {/* Right Action Buttons */}
           <div className="hidden lg:flex items-center gap-3">
             {/* Phone Quick Link */}
-            <a
-              href="tel:+919876543210"
-              className="flex items-center gap-2 text-slate-700 hover:text-[#104A96] text-xs font-semibold py-2 px-2.5 rounded-lg hover:bg-slate-50 transition-colors"
-              title="Call Apply365 Support"
-            >
-              <div className="w-7 h-7 rounded-full bg-[#104A96]/10 flex items-center justify-center text-[#104A96]">
-                <Phone className="w-3.5 h-3.5" />
-              </div>
-              <span className="hidden xl:inline">+91 98765 43210</span>
-            </a>
+            {showCall && (
+              <a
+                href={`tel:+${cleanPhone}`}
+                className="flex items-center gap-2 text-slate-700 hover:text-[#104A96] text-xs font-semibold py-2 px-2.5 rounded-lg hover:bg-slate-50 transition-colors"
+                title="Call Apply365 Support"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#104A96]/10 flex items-center justify-center text-[#104A96]">
+                  <Phone className="w-3.5 h-3.5" />
+                </div>
+                <span className="hidden xl:inline">{rawPhone}</span>
+              </a>
+            )}
 
             {/* WhatsApp Quick Link */}
-            <a
-              href="https://wa.me/919876543210?text=Hi%20Apply365,%20I%20need%20assistance%20with%20documentation%20services"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg transition-colors border border-emerald-200/60"
-              title="Chat on WhatsApp"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/20" />
-              <span>WhatsApp</span>
-            </a>
+            {showWa && (
+              <a
+                href={`https://wa.me/${cleanWa}?text=Hi%20Apply365,%20I%20need%20assistance%20with%20documentation%20services`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg transition-colors border border-emerald-200/60"
+                title="Chat on WhatsApp"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600/20" />
+                <span>WhatsApp</span>
+              </a>
+            )}
 
             {/* Customer Login Option */}
             {isAuthenticated ? (
@@ -526,23 +545,27 @@ export const Navbar: React.FC = () => {
 
           {/* Mobile Direct Action Buttons */}
           <div className="mt-5 pt-4 border-t border-slate-100 space-y-2.5">
-            <a
-              href="tel:+919876543210"
-              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg bg-slate-100 text-slate-800 text-sm font-semibold hover:bg-slate-200"
-            >
-              <Phone className="w-4 h-4 text-[#104A96]" />
-              <span>Call +91 98765 43210</span>
-            </a>
+            {showCall && (
+              <a
+                href={`tel:+${cleanPhone}`}
+                className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg bg-slate-100 text-slate-800 text-sm font-semibold hover:bg-slate-200"
+              >
+                <Phone className="w-4 h-4 text-[#104A96]" />
+                <span>Call {rawPhone}</span>
+              </a>
+            )}
 
-            <a
-              href="https://wa.me/919876543210?text=Hi%20Apply365,%20I%20need%20assistance%20with%20documentation%20services"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>Chat on WhatsApp</span>
-            </a>
+            {showWa && (
+              <a
+                href={`https://wa.me/${cleanWa}?text=Hi%20Apply365,%20I%20need%20assistance%20with%20documentation%20services`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Chat on WhatsApp</span>
+              </a>
+            )}
 
             <Link
               to="/apply"

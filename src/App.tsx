@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { AdminLayout } from './components/admin/AdminLayout';
@@ -43,6 +44,7 @@ import { AdminDocumentsPage } from './pages/admin/AdminDocumentsPage';
 import { AdminLeadsPage } from './pages/admin/AdminLeadsPage';
 import { AdminApplicationsPage } from './pages/admin/AdminApplicationsPage';
 import { AdminInvoicesPage } from './pages/admin/AdminInvoicesPage';
+import { AdminPaymentsPage } from './pages/admin/AdminPaymentsPage';
 import { AdminCustomersPage } from './pages/admin/AdminCustomersPage';
 import { AdminMediaPage } from './pages/admin/AdminMediaPage';
 import { AdminWebContentPage } from './pages/admin/AdminWebContentPage';
@@ -214,6 +216,16 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
+            path="/admin/payments"
+            element={
+              <AdminRoute>
+                <AdminLayout>
+                  <AdminPaymentsPage />
+                </AdminLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
             path="/admin/customers"
             element={
               <AdminRoute>
@@ -305,10 +317,12 @@ export const App: React.FC = () => {
   return (
     <AuthProvider>
       <AdminAuthProvider>
-        <Router>
-          <ScrollToTop />
-          <AppContent />
-        </Router>
+        <SettingsProvider>
+          <Router>
+            <ScrollToTop />
+            <AppContent />
+          </Router>
+        </SettingsProvider>
       </AdminAuthProvider>
     </AuthProvider>
   );

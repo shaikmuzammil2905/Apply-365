@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Send, MessageSquare, Phone, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { servicesData } from '../data/servicesData';
-import { submitLead } from '../services/dataSyncService';
+import { servicesData as fallbackServices } from '../data/servicesData';
+import { getServices, submitLead } from '../services/dataSyncService';
+import { ServiceDetail } from '../types/services';
 
 interface QuickEnquiryModalProps {
   isOpen: boolean;
@@ -15,12 +16,19 @@ export const QuickEnquiryModal: React.FC<QuickEnquiryModalProps> = ({
   onClose,
   preselectedServiceId = 'aadhaar'
 }) => {
+  const [services, setServices] = useState<ServiceDetail[]>(fallbackServices);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [serviceId, setServiceId] = useState(preselectedServiceId);
   const [note, setNote] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    getServices().then(data => {
+      if (data && data.length > 0) setServices(data);
+    });
+  }, []);
 
   if (!isOpen) return null;
 
@@ -37,7 +45,7 @@ export const QuickEnquiryModal: React.FC<QuickEnquiryModalProps> = ({
     }
 
     try {
-      const selected = servicesData.find(s => s.id === serviceId) || servicesData[0];
+      const selected = services.find(s => s.id === serviceId) || services[0];
       await submitLead({
         customerName: name.trim(),
         mobile: cleanPhone,
@@ -55,7 +63,7 @@ export const QuickEnquiryModal: React.FC<QuickEnquiryModalProps> = ({
     setIsSubmitted(true);
   };
 
-  const selectedService = servicesData.find(s => s.id === serviceId) || servicesData[0];
+  const selectedService = services.find(s => s.id === serviceId) || services[0];
 
   const getWhatsAppUrl = () => {
     const text = `Hi Apply365, my name is ${name || 'Customer'}. I would like immediate assistance with *${selectedService.title}*. Mobile: ${phone}. ${note ? 'Note: ' + note : ''}`;
@@ -138,7 +146,7 @@ export const QuickEnquiryModal: React.FC<QuickEnquiryModalProps> = ({
                   onChange={(e) => setServiceId(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
                 >
-                  {servicesData.map((s) => (
+                  {services.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.title}
                     </option>

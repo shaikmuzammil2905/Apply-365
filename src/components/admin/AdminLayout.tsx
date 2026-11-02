@@ -20,7 +20,8 @@ import {
   Database,
   ChevronRight,
   FileCheck2,
-  Receipt
+  Receipt,
+  CreditCard
 } from 'lucide-react';
 
 interface NavItem {
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
   { name: 'Leads & Enquiries', path: '/admin/leads', icon: Inbox },
   { name: 'Applications', path: '/admin/applications', icon: FileText },
   { name: 'Invoices & Billing', path: '/admin/invoices', icon: Receipt },
+  { name: 'Payments', path: '/admin/payments', icon: CreditCard },
   { name: 'Customers', path: '/admin/customers', icon: Users },
   { name: 'Media Library', path: '/admin/media', icon: Image },
   { name: 'Website Content', path: '/admin/website-content', icon: Edit3 },

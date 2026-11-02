@@ -5,15 +5,16 @@ export const servicesData: ServiceDetail[] = [
     id: 'aadhaar',
     slug: 'aadhaar',
     title: 'Aadhaar Card',
-    shortDescription: 'New assistance and address update guidance.',
+    shortDescription: 'New assistances and address updated guidance.',
     fullDescription: 'Get expert guidance and hands-on assistance for Aadhaar address updates and new enrolment navigation under official UIDAI frameworks.',
     accentColor: '#35A936',
     badge: 'Fast & Secure',
     iconName: 'Fingerprint',
     documents: [
       { name: 'Voter ID', description: 'Valid Voter Identity Card with current residential address.' },
-      { name: 'Electricity Bill', description: 'Recent electricity utility bill (not older than 3 months) in applicant or family head name.' },
-      { name: 'Passport', description: 'Valid Indian Passport with current residential details.' }
+      { name: 'Gas bill', description: 'Upload a clear, readable copy showing applicant details.' },
+      { name: 'Passport', description: 'Valid Indian Passport with current residential details.' },
+      { name: 'Electricity Bill', description: 'Recent electricity utility bill (not older than 3 months) in applicant or family head name.' }
     ],
     officialDisclaimer: 'Acceptable proof depends on current UIDAI requirements and the specific address-update method chosen (online or designated Seva Kendra).',
     benefits: [

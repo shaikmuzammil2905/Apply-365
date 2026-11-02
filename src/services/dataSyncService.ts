@@ -136,9 +136,14 @@ export const INITIAL_COURSES: Course[] = [
 export const INITIAL_WEBSITE_SETTINGS: WebsiteSettings = {
   id: 'main_settings',
   siteName: 'Apply365 — Services for People',
+  tagline: 'Fast, Secure & Verified Statutory Assistance Portal',
   phone: '+91 91219 92365',
+  alternatePhone: '+91 98490 12365',
+  customerSupportPhone: '+91 91219 92365',
   whatsapp: '+91 91219 92365',
   email: 'contact@apply365.in',
+  supportEmail: 'support@apply365.in',
+  customerServiceEmail: 'helpdesk@apply365.in',
   address: 'Plot 42, Hitech City Main Road, Madhapur, Hyderabad, Telangana - 500081',
   logoUrl: '/apply365_logo.png',
   seoTitle: 'Apply365 — Government & Business Services Facilitation Portal',
@@ -148,6 +153,28 @@ export const INITIAL_WEBSITE_SETTINGS: WebsiteSettings = {
     twitter: 'https://twitter.com',
     instagram: 'https://instagram.com',
     linkedin: 'https://linkedin.com'
+  },
+  businessHours: {
+    timezone: 'Asia/Kolkata',
+    isTemporarilyClosed: false,
+    temporaryClosureReason: '',
+    specialHolidayNote: 'Open on all standard working days. Sunday support available on WhatsApp.',
+    monday: { isOpen: true, openTime: '09:00', closeTime: '19:00' },
+    tuesday: { isOpen: true, openTime: '09:00', closeTime: '19:00' },
+    wednesday: { isOpen: true, openTime: '09:00', closeTime: '19:00' },
+    thursday: { isOpen: true, openTime: '09:00', closeTime: '19:00' },
+    friday: { isOpen: true, openTime: '09:00', closeTime: '19:00' },
+    saturday: { isOpen: true, openTime: '09:30', closeTime: '18:00' },
+    sunday: { isOpen: false, openTime: '10:00', closeTime: '14:00' }
+  },
+  contactVisibility: {
+    showTaglineHeader: true,
+    showTaglineFooter: true,
+    showTaglinePortal: true,
+    showTaglineInvoice: true,
+    showCallButton: true,
+    showWhatsAppButton: true,
+    showAlternatePhone: true
   },
   updatedAt: new Date().toISOString()
 };
@@ -1590,17 +1617,25 @@ export async function getWebsiteSettings(): Promise<WebsiteSettings> {
       .single();
 
     if (!error && data) {
+      const extra = (data.social_links && data.social_links.extraSettings) || {};
       const settings: WebsiteSettings = {
         id: data.id,
-        siteName: data.site_name || data.siteName,
-        phone: data.phone,
-        whatsapp: data.whatsapp,
-        email: data.email,
-        address: data.address,
-        logoUrl: data.logo_url || data.logoUrl,
-        seoTitle: data.seo_title || data.seoTitle,
-        seoDescription: data.seo_description || data.seoDescription,
-        socialLinks: data.social_links || data.socialLinks || {},
+        siteName: data.site_name || data.siteName || INITIAL_WEBSITE_SETTINGS.siteName,
+        tagline: data.tagline || extra.tagline || INITIAL_WEBSITE_SETTINGS.tagline,
+        phone: data.phone || INITIAL_WEBSITE_SETTINGS.phone,
+        alternatePhone: data.alternate_phone || extra.alternatePhone || INITIAL_WEBSITE_SETTINGS.alternatePhone,
+        customerSupportPhone: data.customer_support_phone || extra.customerSupportPhone || INITIAL_WEBSITE_SETTINGS.customerSupportPhone,
+        whatsapp: data.whatsapp || INITIAL_WEBSITE_SETTINGS.whatsapp,
+        email: data.email || INITIAL_WEBSITE_SETTINGS.email,
+        supportEmail: data.support_email || extra.supportEmail || INITIAL_WEBSITE_SETTINGS.supportEmail,
+        customerServiceEmail: data.customer_service_email || extra.customerServiceEmail || INITIAL_WEBSITE_SETTINGS.customerServiceEmail,
+        address: data.address || INITIAL_WEBSITE_SETTINGS.address,
+        logoUrl: data.logo_url || data.logoUrl || INITIAL_WEBSITE_SETTINGS.logoUrl,
+        seoTitle: data.seo_title || data.seoTitle || INITIAL_WEBSITE_SETTINGS.seoTitle,
+        seoDescription: data.seo_description || data.seoDescription || INITIAL_WEBSITE_SETTINGS.seoDescription,
+        socialLinks: data.social_links || data.socialLinks || INITIAL_WEBSITE_SETTINGS.socialLinks,
+        businessHours: extra.businessHours || data.business_hours || INITIAL_WEBSITE_SETTINGS.businessHours,
+        contactVisibility: extra.contactVisibility || data.contact_visibility || INITIAL_WEBSITE_SETTINGS.contactVisibility,
         updatedAt: data.updated_at || data.updatedAt
       };
       setStored(SETTINGS_KEY, settings);
@@ -1618,8 +1653,23 @@ export async function saveWebsiteSettings(settings: WebsiteSettings): Promise<We
   const updated = { ...settings, updatedAt: now };
   setStored(SETTINGS_KEY, updated);
 
+  const extraSettings = {
+    tagline: updated.tagline,
+    alternatePhone: updated.alternatePhone,
+    customerSupportPhone: updated.customerSupportPhone,
+    supportEmail: updated.supportEmail,
+    customerServiceEmail: updated.customerServiceEmail,
+    businessHours: updated.businessHours,
+    contactVisibility: updated.contactVisibility
+  };
+
+  const socialLinksWithExtra = {
+    ...(updated.socialLinks || {}),
+    extraSettings
+  };
+
   try {
-    await supabase.from('website_settings').upsert({
+    const payload: any = {
       id: 'main_settings',
       site_name: updated.siteName,
       phone: updated.phone,
@@ -1629,16 +1679,53 @@ export async function saveWebsiteSettings(settings: WebsiteSettings): Promise<We
       logo_url: updated.logoUrl,
       seo_title: updated.seoTitle,
       seo_description: updated.seoDescription,
-      social_links: updated.socialLinks,
+      social_links: socialLinksWithExtra,
       updated_at: now
-    });
+    };
+
+    const { error } = await supabase.from('website_settings').upsert(payload);
+    if (error) {
+      console.warn('Supabase website_settings upsert error:', error);
+    }
   } catch (err) {
     console.warn('Supabase website_settings upsert failed:', err);
   }
 
-  await logActivity('Website Settings Updated', 'settings', 'main_settings', 'Admin saved contact info / settings');
+  await logActivity('Website Settings Updated', 'settings', 'main_settings', 'Admin saved branding, working hours & contact settings');
   notifyDataChange('website_settings', updated);
   return updated;
+}
+
+export interface PaymentRecordItem extends InvoicePayment {
+  invoiceNumber: string;
+  customerName: string;
+  customerMobile: string;
+  customerEmail: string;
+  serviceTitle?: string;
+  totalInvoiceAmount: number;
+  paymentStatus: InvoicePaymentStatus;
+}
+
+export async function getAllPayments(): Promise<PaymentRecordItem[]> {
+  const invoices = await getInvoices();
+  const list: PaymentRecordItem[] = [];
+  for (const inv of invoices) {
+    if (inv.payments && inv.payments.length > 0) {
+      for (const p of inv.payments) {
+        list.push({
+          ...p,
+          invoiceNumber: inv.invoiceNumber,
+          customerName: inv.customerName,
+          customerMobile: inv.customerMobile,
+          customerEmail: inv.customerEmail,
+          serviceTitle: inv.items?.[0]?.description || 'Government & Business Service Assistance',
+          totalInvoiceAmount: inv.totalAmount,
+          paymentStatus: inv.paymentStatus
+        });
+      }
+    }
+  }
+  return list.sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
 }
 
 // ==========================================
