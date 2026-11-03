@@ -7,6 +7,7 @@ import { CustomerApplication, ApplicationDocument, CustomerNotification } from '
 import { CustomerInvoice, InvoicePayment } from '../../types/invoices';
 import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
 import { generateInvoicePDF, generateApplicationSummaryPDF, formatINR } from '../../utils/pdfGenerator';
+import { openRazorpayCheckout, RAZORPAY_CONFIG } from '../../services/razorpayService';
 import confetti from 'canvas-confetti';
 import { 
   User, 
@@ -199,6 +200,60 @@ export const CustomerDashboardPage: React.FC = () => {
       }, 1200);
     } catch (err: any) {
       setPayError(err.message || 'Payment processing failed. Please try again.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const handleRazorpayPayment = async () => {
+    if (!checkoutInvoice) return;
+
+    setIsPaying(true);
+    setPayError('');
+    setPaySuccessMsg('');
+
+    try {
+      const resp = await openRazorpayCheckout({
+        amount: checkoutInvoice.balanceDue,
+        invoiceId: checkoutInvoice.invoiceNumber || checkoutInvoice.id,
+        description: `Apply365 Facilitation Fee — ${checkoutInvoice.serviceName}`,
+        customerName: checkoutInvoice.customerName || currentUser?.name || 'Customer',
+        customerEmail: checkoutInvoice.customerEmail || currentUser?.email || 'applyallservices365@gmail.com',
+        customerPhone: checkoutInvoice.customerMobile || currentUser?.mobile || '9121992365',
+        notes: {
+          invoice_id: checkoutInvoice.id,
+          invoice_number: checkoutInvoice.invoiceNumber,
+          customer_id: checkoutInvoice.customerId
+        }
+      });
+
+      const txnRef = resp.razorpay_payment_id;
+
+      await recordInvoicePayment(checkoutInvoice.id, {
+        invoiceId: checkoutInvoice.id,
+        amount: checkoutInvoice.balanceDue,
+        paymentMethod: 'Credit/Debit Card',
+        transactionReference: txnRef,
+        paymentDate: new Date().toISOString(),
+        paymentNotes: `Razorpay Online Payment Verified. Payment ID: ${txnRef}`,
+        recordedBy: `${currentUser?.name || 'Customer'} (Razorpay Gateway)`
+      });
+
+      try {
+        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+      } catch {}
+
+      setPaySuccessMsg(`Payment of ${formatINR(checkoutInvoice.balanceDue)} verified & completed successfully via Razorpay! Transaction ID: ${txnRef}`);
+      await loadCustomerData();
+      setTimeout(() => {
+        setCheckoutInvoice(null);
+        setPaySuccessMsg('');
+        setActiveTab('payments');
+      }, 1600);
+    } catch (err: any) {
+      if (err.message && !err.message.includes('closed by user')) {
+        setPayError(err.message || 'Razorpay payment processing failed.');
+      }
     } finally {
       setIsPaying(false);
     }
@@ -958,6 +1013,56 @@ export const CustomerDashboardPage: React.FC = () => {
                 <span>{paySuccessMsg}</span>
               </div>
             )}
+
+            {/* Primary Razorpay Gateway Card */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#0F3567] to-[#104A96] text-white shadow-lg space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center font-black text-amber-300 text-xs">
+                    R
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold block leading-tight">Razorpay Secure Checkout</span>
+                    <span className="text-[10px] text-blue-200">Instant UPI, GPay, PhonePe, Cards & Net Banking</span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold uppercase tracking-wider">
+                  Official Gateway
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <div className="text-[11px] text-blue-100/90 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0" />
+                  <span>256-Bit Bank Grade Encryption</span>
+                </div>
+                <div className="text-[10px] font-mono text-blue-200 bg-white/10 px-2 py-0.5 rounded">
+                  Test Keys: Active
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRazorpayPayment}
+                disabled={isPaying}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#FF8500] to-[#FF9F33] hover:from-[#e67700] hover:to-[#ff921a] text-white text-sm font-extrabold shadow-md transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isPaying ? (
+                  <span>Connecting to Razorpay...</span>
+                ) : (
+                  <>
+                    <CreditCard className="w-4 h-4" />
+                    <span>Pay with Razorpay ({formatINR(checkoutInvoice.balanceDue)})</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-200"></div>
+              <span className="flex-shrink mx-3 text-slate-400 text-[10px] font-bold uppercase tracking-wider">Or Manual Transfer</span>
+              <div className="flex-grow border-t border-slate-200"></div>
+            </div>
 
             {/* Payment Method Selector */}
             <div className="space-y-3">

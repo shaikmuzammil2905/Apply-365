@@ -27,6 +27,7 @@ import { ContactPage } from './pages/ContactPage';
 import { ApplyPage } from './pages/ApplyPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsPage } from './pages/TermsPage';
+import { PublicPaymentPage } from './pages/PublicPaymentPage';
 
 // Customer Auth & Portal Pages
 import { LoginPage } from './pages/auth/LoginPage';
@@ -131,6 +132,11 @@ const AppContent: React.FC = () => {
           <Route path="/track" element={<TrackApplicationPage />} />
           <Route path="/track-status" element={<TrackApplicationPage />} />
           <Route path="/track/:id" element={<TrackApplicationPage />} />
+
+          {/* Quick Online Payment via Razorpay */}
+          <Route path="/pay" element={<PublicPaymentPage />} />
+          <Route path="/pay/:invoiceId" element={<PublicPaymentPage />} />
+          <Route path="/payment" element={<PublicPaymentPage />} />
 
           {/* Informational Pages */}
           <Route path="/documents-required" element={<DocumentsRequiredPage />} />

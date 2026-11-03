@@ -125,6 +125,15 @@ export interface WebsiteSettings {
   };
   businessHours?: BusinessHoursConfig;
   contactVisibility?: ContactVisibilitySettings;
+  paymentGateway?: {
+    provider: 'razorpay';
+    keyId: string;
+    keySecret?: string;
+    isEnabled: boolean;
+    isTestMode: boolean;
+    merchantName?: string;
+    themeColor?: string;
+  };
   updatedAt: string;
 }
 

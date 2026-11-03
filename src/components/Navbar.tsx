@@ -201,6 +201,18 @@ export const Navbar: React.FC = () => {
             </Link>
 
             <Link
+              to="/pay"
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                isActive('/pay')
+                  ? 'text-[#104A96] bg-[#F1F7FF]'
+                  : 'text-slate-700 hover:text-[#104A96] hover:bg-slate-50'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Pay Online</span>
+            </Link>
+
+            <Link
               to="/documents-required"
               className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 isActive('/documents-required')
@@ -494,6 +506,26 @@ export const Navbar: React.FC = () => {
               </div>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                 Live Status
+              </span>
+            </Link>
+
+            <Link
+              to="/pay"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-base font-semibold ${
+                isActive('/pay')
+                  ? 'text-[#104A96] bg-[#F1F7FF]'
+                  : 'text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <span>Pay Online (Razorpay)</span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#104A96] border border-blue-200 font-mono">
+                Instant UPI / Cards
               </span>
             </Link>
 

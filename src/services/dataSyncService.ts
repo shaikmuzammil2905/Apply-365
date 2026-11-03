@@ -176,6 +176,15 @@ export const INITIAL_WEBSITE_SETTINGS: WebsiteSettings = {
     showWhatsAppButton: true,
     showAlternatePhone: true
   },
+  paymentGateway: {
+    provider: 'razorpay',
+    keyId: 'rzp_test_TvkCL1OAbneDCO',
+    keySecret: 'XCWHY5IwxtP49KB6t7DJILjt',
+    isEnabled: true,
+    isTestMode: true,
+    merchantName: 'Apply365 — Services for People',
+    themeColor: '#104A96'
+  },
   updatedAt: new Date().toISOString()
 };
 
@@ -1639,6 +1648,7 @@ export async function getWebsiteSettings(): Promise<WebsiteSettings> {
         socialLinks: data.social_links || data.socialLinks || INITIAL_WEBSITE_SETTINGS.socialLinks,
         businessHours: extra.businessHours || data.business_hours || INITIAL_WEBSITE_SETTINGS.businessHours,
         contactVisibility: extra.contactVisibility || data.contact_visibility || INITIAL_WEBSITE_SETTINGS.contactVisibility,
+        paymentGateway: extra.paymentGateway || data.payment_gateway || INITIAL_WEBSITE_SETTINGS.paymentGateway,
         updatedAt: data.updated_at || data.updatedAt
       };
       setStored(SETTINGS_KEY, settings);
@@ -1663,7 +1673,8 @@ export async function saveWebsiteSettings(settings: WebsiteSettings): Promise<We
     supportEmail: updated.supportEmail,
     customerServiceEmail: updated.customerServiceEmail,
     businessHours: updated.businessHours,
-    contactVisibility: updated.contactVisibility
+    contactVisibility: updated.contactVisibility,
+    paymentGateway: updated.paymentGateway
   };
 
   const socialLinksWithExtra = {

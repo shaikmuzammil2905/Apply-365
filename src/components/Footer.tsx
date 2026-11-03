@@ -8,7 +8,8 @@ import {
   MessageSquare, 
   ShieldAlert, 
   ExternalLink,
-  ArrowRight
+  ArrowRight,
+  CreditCard
 } from 'lucide-react';
 import { useWebsiteSettings } from '../context/SettingsContext';
 
@@ -163,6 +164,12 @@ export const Footer: React.FC = () => {
               <li>
                 <Link to="/track" className="text-slate-300 hover:text-white transition-colors font-semibold text-orange-400">
                   Track Application Status
+                </Link>
+              </li>
+              <li>
+                <Link to="/pay" className="text-slate-300 hover:text-white transition-colors font-semibold text-emerald-300 flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Pay Online (Razorpay)</span>
                 </Link>
               </li>
               <li>
