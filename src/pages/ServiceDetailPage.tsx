@@ -12,6 +12,7 @@ import { openRazorpayCheckout } from '../services/razorpayService';
 import { CustomerApplication, ApplicationDocument } from '../types/application';
 import { DocumentPreviewModal } from '../components/DocumentPreviewModal';
 import { downloadDocumentFile } from '../utils/fileDownloadHelper';
+import { calculateServicePrice } from '../utils/pricingHelper';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { generateInvoicePDF, generateApplicationSummaryPDF, formatINR } from '../utils/pdfGenerator';
 import confetti from 'canvas-confetti';
@@ -30,6 +31,7 @@ import {
   Building2,
   Fingerprint,
   CreditCard,
+  IndianRupee,
   Vote,
   FileCheck2,
   Landmark,
@@ -58,6 +60,7 @@ import {
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Fingerprint,
   CreditCard,
+  IndianRupee,
   Vote,
   Building2,
   FileCheck2,
@@ -132,7 +135,6 @@ export const ServiceDetailPage: React.FC = () => {
 
   // Settings
   const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings | null>(null);
-  const feeAmount = websiteSettings?.applicationFee ?? 50;
 
   useEffect(() => {
     getWebsiteSettings().then(st => {
@@ -207,6 +209,8 @@ export const ServiceDetailPage: React.FC = () => {
 
   const activeService = service || getInitialServiceBySlug(activeSlug);
   const IconComponent = iconMap[activeService.iconName] || Fingerprint;
+  const activePricing = calculateServicePrice(activeService, selectedSubService);
+  const feeAmount = activePricing.total;
 
   // Validation
   const validateField = (fieldName: string, rawVal: any): string => {
@@ -611,6 +615,20 @@ export const ServiceDetailPage: React.FC = () => {
                 <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
                   {service.shortDescription}
                 </p>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="text-xs font-black px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1.5 shadow-2xs">
+                    <IndianRupee className="w-3.5 h-3.5" />
+                    <span>{activePricing.isFree ? 'Free Service' : `${activePricing.label}: ₹${feeAmount}`}</span>
+                    {activePricing.originalPrice && (
+                      <span className="line-through text-slate-400 font-normal ml-1">₹{activePricing.originalPrice}</span>
+                    )}
+                  </span>
+                  {activePricing.description && (
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      • {activePricing.description}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -698,13 +716,18 @@ export const ServiceDetailPage: React.FC = () => {
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-xs sm:text-sm text-slate-900">{sub.label}</span>
-                        {selectedSubService === sub.value && (
-                          <div className="w-5 h-5 rounded-full bg-[#104A96] text-white flex items-center justify-center">
-                            <Check className="w-3 h-3" />
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {activePricing.isFree ? 'Free' : `₹${sub.price !== undefined ? sub.price : (service.servicePrice ?? 50)}`}
+                          </span>
+                          {selectedSubService === sub.value && (
+                            <div className="w-5 h-5 rounded-full bg-[#104A96] text-white flex items-center justify-center">
+                              <Check className="w-3 h-3" />
+                            </div>
+                          )}
+                        </div>
                       </div>
                       {sub.description && (
                         <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{sub.description}</p>
@@ -1144,7 +1167,11 @@ export const ServiceDetailPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <span>{t('review.proceedToPayment', 'Submit Details & Proceed to Payment (₹50)')}</span>
+                      <span>
+                        {activePricing.isFree 
+                          ? 'Submit Application (Free)' 
+                          : `Submit Details & Proceed to Payment (₹${feeAmount})`}
+                      </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -1174,7 +1201,9 @@ export const ServiceDetailPage: React.FC = () => {
                     {t('pay.title', 'Complete Your Application Payment')}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                    {t('pay.pendingNotice', 'Your application is securely saved. Please complete the ₹50 fee to submit for officer review.')}
+                    {activePricing.isFree 
+                      ? 'Your application is securely saved. Please click Complete Application to submit for officer review.' 
+                      : `Your application is securely saved. Please complete the ₹${feeAmount} fee to submit for officer review.`}
                   </p>
                 </div>
 
@@ -1285,7 +1314,7 @@ export const ServiceDetailPage: React.FC = () => {
                     ) : (
                       <>
                         <CreditCard className="w-5 h-5" />
-                        <span>{t('pay.button', 'Pay ₹50 & Complete Application')}</span>
+                        <span>{activePricing.isFree ? 'Complete Free Application' : `Pay ₹${feeAmount} & Complete Application`}</span>
                       </>
                     )}
                   </button>

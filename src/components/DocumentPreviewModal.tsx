@@ -92,8 +92,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   const fileType = activeDoc.fileType || '';
   const fileSize = activeDoc.fileSize || 'N/A';
   const uploadedAt = activeDoc.uploadedAt || 'Recently';
-  const customerName = activeDoc.customerName || propCustomerName || 'Citizen Applicant';
-  const applicationId = activeDoc.applicationId || propApplicationId || 'N/A';
+  const customerName = (activeDoc as any).customerName || propCustomerName || 'Citizen Applicant';
+  const applicationId = (activeDoc as any).applicationId || propApplicationId || 'N/A';
 
   const isPdf = Boolean(
     fileType.toLowerCase().includes('pdf') || 

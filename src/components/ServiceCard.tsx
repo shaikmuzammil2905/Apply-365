@@ -15,6 +15,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { ServiceDetail } from '../types/services';
+import { getStartingPrice } from '../utils/pricingHelper';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Fingerprint,
@@ -35,6 +36,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
   const navigate = useNavigate();
   const IconComponent = iconMap[service.iconName] || Fingerprint;
   const targetSlug = service.slug === 'aadhaar' ? 'aadhaar-card' : service.slug;
+  const priceInfo = getStartingPrice(service);
 
   const handleCardClick = () => {
     navigate(`/services/${targetSlug}`);
@@ -73,10 +75,15 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service }) => {
             <IconComponent className="w-7 h-7" />
           </div>
 
-          {/* Badge */}
-          <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 group-hover:bg-[#F1F7FF] group-hover:text-[#104A96] transition-colors">
-            {service.badge}
-          </span>
+          {/* Badge & Price */}
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 group-hover:bg-[#F1F7FF] group-hover:text-[#104A96] transition-colors">
+              {service.badge}
+            </span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+              {priceInfo.isFree ? 'Free' : `From ${priceInfo.formatted}`}
+            </span>
+          </div>
         </div>
 
         {/* Title */}

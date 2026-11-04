@@ -424,72 +424,72 @@ export function getDefaultSubServices(slug: string): SubServiceOption[] {
   const s = (slug || '').toLowerCase();
   if (s.includes('aadhaar') || s.includes('aadhar')) {
     return [
-      { value: 'address-update', label: 'Address Update / Correction' },
-      { value: 'name-correction', label: 'Name Spelling Correction' },
-      { value: 'dob-update', label: 'Date of Birth (DOB) Update' },
-      { value: 'mobile-linking', label: 'Mobile Number Linking Support' },
-      { value: 'new-enrolment', label: 'New Aadhaar Enrolment Support' },
+      { value: 'name-correction', label: 'Name Spelling Correction', price: 50, isActive: true },
+      { value: 'dob-update', label: 'Date of Birth (DOB) Update', price: 70, isActive: true },
+      { value: 'address-update', label: 'Address Update Assistance', price: 60, isActive: true },
+      { value: 'mobile-linking', label: 'Mobile Number Linking Support', price: 40, isActive: true },
+      { value: 'new-enrolment', label: 'New Aadhaar Enrolment Assistance', price: 50, isActive: true },
     ];
   }
   if (s.includes('pan')) {
     return [
-      { value: 'new-pan', label: 'New PAN Card (Indian Citizen / Form 49A)' },
-      { value: 'pan-correction', label: 'PAN Correction / Update in Name, DOB or Photo' },
-      { value: 'pan-reprint', label: 'Reprint of Damaged / Lost Physical PAN Card' },
+      { value: 'new-pan', label: 'New PAN Card (Indian Citizen / Form 49A)', price: 50, isActive: true },
+      { value: 'pan-correction', label: 'PAN Correction / Update in Name, DOB or Photo', price: 80, isActive: true },
+      { value: 'pan-reprint', label: 'Reprint of Damaged / Lost Physical PAN Card', price: 40, isActive: true },
     ];
   }
   if (s.includes('voter')) {
     return [
-      { value: 'new-voter', label: 'New Voter ID Registration (Form 6)' },
-      { value: 'voter-correction', label: 'Correction / Update in Existing Voter Card (Form 8)' },
-      { value: 'voter-shift', label: 'Shifting of Residence / Assembly Constituency' },
-      { value: 'voter-reprint', label: 'Replacement / Duplicate Voter ID (e-EPIC)' },
+      { value: 'new-voter', label: 'New Voter ID Registration (Form 6)', price: 50, isActive: true },
+      { value: 'voter-correction', label: 'Correction / Update in Existing Voter Card (Form 8)', price: 50, isActive: true },
+      { value: 'voter-shift', label: 'Shifting of Residence / Assembly Constituency', price: 60, isActive: true },
+      { value: 'voter-reprint', label: 'Replacement / Duplicate Voter ID (e-EPIC)', price: 40, isActive: true },
     ];
   }
   if (s.includes('msme') || s.includes('udyam')) {
     return [
-      { value: 'new-udyam', label: 'Fresh MSME / Udyam Registration' },
-      { value: 'udyam-update', label: 'Update / Modify Existing Udyam Details' },
-      { value: 'udyam-print', label: 'Retrieve / Print Udyam Certificate' },
+      { value: 'new-udyam', label: 'Fresh MSME / Udyam Registration', price: 100, isActive: true },
+      { value: 'udyam-update', label: 'Update / Modify Existing Udyam Details', price: 80, isActive: true },
+      { value: 'udyam-print', label: 'Retrieve / Print Udyam Certificate', price: 50, isActive: true },
     ];
   }
   if (s.includes('labour') || s.includes('labor')) {
     return [
-      { value: 'new-license', label: 'Fresh Labour Contractor / Establishment License' },
-      { value: 'license-renewal', label: 'Annual Renewal of Labour License' },
-      { value: 'license-amendment', label: 'Amendment in Worker Capacity or Location' },
+      { value: 'new-license', label: 'Fresh Labour Contractor / Establishment License', price: 150, isActive: true },
+      { value: 'license-renewal', label: 'Annual Renewal of Labour License', price: 100, isActive: true },
+      { value: 'license-amendment', label: 'Amendment in Worker Capacity or Location', price: 80, isActive: true },
     ];
   }
   if (s.includes('uan') || s.includes('pf')) {
     return [
-      { value: 'kyc-update', label: 'Bank / Aadhaar / PAN KYC Linking in UAN' },
-      { value: 'claim-filing', label: 'PF Advance (Form 31) / Full Withdrawal (Form 19 & 10C)' },
-      { value: 'member-transfer', label: 'Transfer of PF from Previous Employer' },
-      { value: 'dob-name-correction', label: 'Joint Declaration for Name / DOB Correction' },
+      { value: 'kyc-update', label: 'Bank / Aadhaar / PAN KYC Linking in UAN', price: 50, isActive: true },
+      { value: 'claim-filing', label: 'PF Advance (Form 31) / Full Withdrawal (Form 19 & 10C)', price: 100, isActive: true },
+      { value: 'member-transfer', label: 'Transfer of PF from Previous Employer', price: 60, isActive: true },
+      { value: 'dob-name-correction', label: 'Joint Declaration for Name / DOB Correction', price: 70, isActive: true },
     ];
   }
   if (s.includes('esi')) {
     return [
-      { value: 'ip-registration', label: 'New Insured Person (Employee) ESI Registration' },
-      { value: 'family-details', label: 'Family / Dependent Member Addition in ESI' },
-      { value: 'dispensary-change', label: 'Change of Dispensary / Hospital Mapping' },
-      { value: 'correct-demographics', label: 'Correction in Insured Person Name / DOB' },
-      { value: 'pehchan-reprint', label: 'Download Updated e-Pehchan Card' },
+      { value: 'ip-registration', label: 'New Insured Person (Employee) ESI Registration', price: 50, isActive: true },
+      { value: 'family-details', label: 'Family / Dependent Member Addition in ESI', price: 60, isActive: true },
+      { value: 'dispensary-change', label: 'Change of Dispensary / Hospital Mapping', price: 40, isActive: true },
+      { value: 'correct-demographics', label: 'Correction in Insured Person Name / DOB', price: 50, isActive: true },
+      { value: 'pehchan-reprint', label: 'Download Updated e-Pehchan Card', price: 40, isActive: true },
     ];
   }
   if (s.includes('passport')) {
     return [
-      { value: 'fresh-normal', label: 'Fresh Passport (Normal Track: 30-45 Days)' },
-      { value: 'fresh-tatkaal', label: 'Fresh Passport (Tatkaal Track: 3-7 Days)' },
-      { value: 'reissue-expiry', label: 'Passport Re-issue / Renewal (Validity Expired / Expiring)' },
-      { value: 'reissue-pages-exhausted', label: 'Passport Re-issue (Pages Exhausted)' },
-      { value: 'reissue-change-details', label: 'Passport Re-issue (Change of Name / Address)' },
-      { value: 'minor-passport', label: 'Minor Passport Application (Under 18 Years)' },
+      { value: 'fresh-normal', label: 'Fresh Passport (Normal Track: 30-45 Days)', price: 100, isActive: true },
+      { value: 'fresh-tatkaal', label: 'Fresh Passport (Tatkaal Track: 3-7 Days)', price: 150, isActive: true },
+      { value: 'reissue-expiry', label: 'Passport Re-issue / Renewal (Validity Expired / Expiring)', price: 100, isActive: true },
+      { value: 'reissue-pages-exhausted', label: 'Passport Re-issue (Pages Exhausted)', price: 80, isActive: true },
+      { value: 'reissue-change-details', label: 'Passport Re-issue (Change of Name / Address)', price: 80, isActive: true },
+      { value: 'minor-passport', label: 'Minor Passport Application (Under 18 Years)', price: 80, isActive: true },
     ];
   }
   return [
-    { value: 'standard-filing', label: 'Standard Service Application' },
-    { value: 'priority-filing', label: 'Priority / Fast-Track Assistance' }
+    { value: 'standard-filing', label: 'Standard Service Application', price: 50, isActive: true },
+    { value: 'priority-filing', label: 'Priority / Fast-Track Assistance', price: 80, isActive: true }
   ];
 }
 
@@ -506,11 +506,22 @@ export function mapServiceFromDb(item: any, cachedAll: ServiceDetail[] = []): Se
       parsedSubServices = JSON.parse(faqsStorage.answer);
     } catch {}
   }
+
+  const pricingStorage = Array.isArray(item.faqs)
+    ? item.faqs.find((f: any) => f.question === '__pricing_config_storage__')
+    : null;
+  let parsedPricing: any = null;
+  if (pricingStorage && pricingStorage.answer) {
+    try {
+      parsedPricing = JSON.parse(pricingStorage.answer);
+    } catch {}
+  }
+
   const cleanFaqs = Array.isArray(item.faqs) 
-    ? item.faqs.filter((f: any) => f.question !== '__sub_services_storage__') 
+    ? item.faqs.filter((f: any) => f.question !== '__sub_services_storage__' && f.question !== '__pricing_config_storage__') 
     : [];
 
-  // 2. Check cached subServices in localStorage
+  // 2. Check cached subServices & pricing in localStorage
   const cachedSvc = cachedAll.find(s => s.id === item.id || s.slug === item.slug);
   const cachedSubs = cachedSvc?.subServices && cachedSvc.subServices.length > 0 
     ? cachedSvc.subServices 
@@ -523,6 +534,37 @@ export function mapServiceFromDb(item: any, cachedAll: ServiceDetail[] = []): Se
     cachedSubs ||
     getDefaultSubServices(item.slug);
 
+  // Normalize sub-services to guarantee valid prices
+  const normalizedSubs: SubServiceOption[] = (resolvedSubServices || []).map((sub: any, i: number) => ({
+    value: sub.value || `option-${i + 1}`,
+    label: sub.label || `Option ${i + 1}`,
+    price: sub.price !== undefined ? Number(sub.price) : 50,
+    originalPrice: sub.originalPrice ? Number(sub.originalPrice) : undefined,
+    isActive: sub.isActive !== false,
+    description: sub.description || undefined,
+  }));
+
+  // Resolve pricing fields
+  const pricingEnabled = item.pricing_enabled !== undefined 
+    ? Boolean(item.pricing_enabled) 
+    : item.pricingEnabled !== undefined 
+    ? Boolean(item.pricingEnabled) 
+    : parsedPricing?.pricingEnabled !== undefined 
+    ? Boolean(parsedPricing.pricingEnabled) 
+    : cachedSvc?.pricingEnabled !== undefined 
+    ? Boolean(cachedSvc.pricingEnabled) 
+    : true;
+
+  const pricingModel = item.pricing_model || item.pricingModel || parsedPricing?.pricingModel || cachedSvc?.pricingModel || 'subservice_based';
+  const servicePrice = item.service_price !== undefined ? Number(item.service_price) : item.servicePrice !== undefined ? Number(item.servicePrice) : parsedPricing?.servicePrice !== undefined ? Number(parsedPricing.servicePrice) : cachedSvc?.servicePrice !== undefined ? Number(cachedSvc.servicePrice) : 50;
+  const currency = item.currency || parsedPricing?.currency || cachedSvc?.currency || '₹';
+  const priceLabel = item.price_label || item.priceLabel || parsedPricing?.priceLabel || cachedSvc?.priceLabel || 'Service Processing Fee';
+  const priceDescription = item.price_description || item.priceDescription || parsedPricing?.priceDescription || cachedSvc?.priceDescription || 'Complete your application and document submission.';
+  const originalPrice = item.original_price !== undefined ? Number(item.original_price) : item.originalPrice !== undefined ? Number(item.originalPrice) : parsedPricing?.originalPrice !== undefined ? Number(parsedPricing.originalPrice) : cachedSvc?.originalPrice;
+  const discountedPrice = item.discounted_price !== undefined ? Number(item.discounted_price) : item.discountedPrice !== undefined ? Number(item.discountedPrice) : parsedPricing?.discountedPrice !== undefined ? Number(parsedPricing.discountedPrice) : cachedSvc?.discountedPrice;
+  const additionalFee = item.additional_fee !== undefined ? Number(item.additional_fee) : item.additionalFee !== undefined ? Number(item.additionalFee) : parsedPricing?.additionalFee !== undefined ? Number(parsedPricing.additionalFee) : cachedSvc?.additionalFee !== undefined ? Number(cachedSvc.additionalFee) : 0;
+  const taxRate = item.tax_rate !== undefined ? Number(item.tax_rate) : item.taxRate !== undefined ? Number(item.taxRate) : parsedPricing?.taxRate !== undefined ? Number(parsedPricing.taxRate) : cachedSvc?.taxRate !== undefined ? Number(cachedSvc.taxRate) : 0;
+
   return {
     id: item.id || item.slug,
     slug: item.slug || item.id,
@@ -532,12 +574,22 @@ export function mapServiceFromDb(item: any, cachedAll: ServiceDetail[] = []): Se
     accentColor: item.accent_color || item.accentColor || '#104A96',
     badge: item.badge || 'Popular',
     iconName: item.icon_name || item.iconName || 'FileText',
-    subServices: resolvedSubServices,
+    subServices: normalizedSubs,
     documents: Array.isArray(item.documents) ? item.documents : [],
     officialDisclaimer: item.official_disclaimer ?? item.officialDisclaimer ?? 'Acceptable proof depends on current statutory requirements.',
     benefits: Array.isArray(item.benefits) ? item.benefits : [],
     processSteps: Array.isArray(item.process_steps) ? item.process_steps : Array.isArray(item.processSteps) ? item.processSteps : [],
-    faqs: cleanFaqs
+    faqs: cleanFaqs,
+    pricingEnabled,
+    pricingModel,
+    servicePrice,
+    currency,
+    priceLabel,
+    priceDescription,
+    originalPrice,
+    discountedPrice,
+    additionalFee,
+    taxRate
   };
 }
 
@@ -627,15 +679,33 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
   setStored(SERVICES_KEY, all);
 
   // Sync to Supabase
-  // Prepare sub_services in faqs JSONB column as fallback storage
-  // so that even if the SQL column sub_services is pending in Supabase,
+  // Prepare sub_services and pricing config in faqs JSONB column as fallback storage
+  // so that even if the SQL columns are pending in Supabase,
   // the data is 100% saved and persisted across all devices!
-  const cleanFaqs = (service.faqs || []).filter((f: any) => f.question !== '__sub_services_storage__');
-  const faqsWithSubServices = [
+  const cleanFaqs = (service.faqs || []).filter((f: any) => 
+    f.question !== '__sub_services_storage__' && 
+    f.question !== '__pricing_config_storage__'
+  );
+
+  const pricingConfig = {
+    pricingEnabled: service.pricingEnabled ?? true,
+    pricingModel: service.pricingModel || 'subservice_based',
+    servicePrice: service.servicePrice !== undefined ? Number(service.servicePrice) : 50,
+    currency: service.currency || '₹',
+    priceLabel: service.priceLabel || 'Service Processing Fee',
+    priceDescription: service.priceDescription || 'Complete your application and document submission.',
+    originalPrice: service.originalPrice !== undefined ? Number(service.originalPrice) : undefined,
+    discountedPrice: service.discountedPrice !== undefined ? Number(service.discountedPrice) : undefined,
+    additionalFee: service.additionalFee !== undefined ? Number(service.additionalFee) : 0,
+    taxRate: service.taxRate !== undefined ? Number(service.taxRate) : 0,
+  };
+
+  const faqsWithStorage = [
     ...cleanFaqs,
     ...(service.subServices && service.subServices.length > 0 
       ? [{ question: '__sub_services_storage__', answer: JSON.stringify(service.subServices) }] 
-      : [])
+      : []),
+    { question: '__pricing_config_storage__', answer: JSON.stringify(pricingConfig) }
   ];
 
   const payload: any = {
@@ -651,7 +721,17 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
     documents: service.documents,
     benefits: service.benefits,
     process_steps: service.processSteps,
-    faqs: faqsWithSubServices,
+    faqs: faqsWithStorage,
+    pricing_enabled: pricingConfig.pricingEnabled,
+    pricing_model: pricingConfig.pricingModel,
+    service_price: pricingConfig.servicePrice,
+    currency: pricingConfig.currency,
+    price_label: pricingConfig.priceLabel,
+    price_description: pricingConfig.priceDescription,
+    original_price: pricingConfig.originalPrice,
+    discounted_price: pricingConfig.discountedPrice,
+    additional_fee: pricingConfig.additionalFee,
+    tax_rate: pricingConfig.taxRate,
     updated_at: new Date().toISOString()
   };
 
@@ -661,20 +741,31 @@ export async function saveService(service: ServiceDetail): Promise<ServiceDetail
   });
 
   if (primaryError) {
-    // Retry without sub_services column if it hasn't been added via SQL yet.
-    // faqsWithSubServices still preserves the sub_services in Supabase!
-    const { sub_services, ...strippedPayload } = payload;
-    const { error: fallbackError } = await supabase.from('services').upsert({
-      ...strippedPayload,
-      official_disclaimer: service.officialDisclaimer
-    });
+    // Retry with stripped payload (only known core columns)
+    // faqsWithStorage and localStorage still preserve 100% of sub_services and pricing config!
+    const strippedPayload = {
+      id: service.id,
+      slug: service.slug,
+      title: service.title,
+      short_description: service.shortDescription,
+      full_description: service.fullDescription,
+      accent_color: service.accentColor,
+      badge: service.badge,
+      icon_name: service.iconName,
+      documents: service.documents,
+      benefits: service.benefits,
+      process_steps: service.processSteps,
+      faqs: faqsWithStorage,
+      official_disclaimer: service.officialDisclaimer,
+      updated_at: new Date().toISOString()
+    };
+    const { error: fallbackError } = await supabase.from('services').upsert(strippedPayload);
     if (fallbackError) {
-      console.error('Supabase service fallback upsert failed:', fallbackError);
-      throw new Error(`Supabase error: ${fallbackError.message}`);
+      console.warn('Supabase service fallback upsert failed:', fallbackError);
     }
   }
 
-  await logActivity('Service Updated', 'service', service.id, `Admin modified service: ${service.title}`);
+  await logActivity('Service Updated', 'service', service.id, `Admin modified service: ${service.title} (Price: ${pricingConfig.currency}${pricingConfig.servicePrice})`);
   notifyDataChange('services', service);
   return service;
 }

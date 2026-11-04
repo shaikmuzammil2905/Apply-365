@@ -28,8 +28,13 @@ export interface SubServiceOption {
   label: string;
   description?: string;
   fees?: number | string;
+  price?: number;
+  originalPrice?: number;
   isActive?: boolean;
+  displayOrder?: number;
 }
+
+export type PricingModel = 'subservice_based' | 'service_based' | 'service_plus_fee' | 'free';
 
 export interface ServiceDetail {
   id: string;
@@ -46,6 +51,18 @@ export interface ServiceDetail {
   benefits: string[];
   processSteps: { title: string; description: string }[];
   faqs: { question: string; answer: string }[];
+
+  // Dedicated Service Pricing & Fee Configuration
+  pricingEnabled?: boolean;
+  pricingModel?: PricingModel;
+  servicePrice?: number;
+  currency?: string;
+  priceLabel?: string;
+  priceDescription?: string;
+  originalPrice?: number;
+  discountedPrice?: number;
+  additionalFee?: number;
+  taxRate?: number;
 }
 
 export interface ApplicationFormData {

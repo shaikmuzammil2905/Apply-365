@@ -261,8 +261,9 @@ export const CustomerDashboardPage: React.FC = () => {
 
   const handlePayApplicationFee = async (app: CustomerApplication) => {
     try {
+      const targetFee = app.paymentAmount || 50;
       const resp = await openRazorpayCheckout({
-        amount: 50,
+        amount: targetFee,
         invoiceId: app.id,
         description: `Apply-365 Facilitation Fee — ${app.serviceTitle}`,
         customerName: app.customerName || currentUser?.name || 'Customer',
@@ -279,7 +280,7 @@ export const CustomerDashboardPage: React.FC = () => {
       const updatedApp: CustomerApplication = {
         ...app,
         paymentStatus: 'payment_completed',
-        paymentAmount: 50,
+        paymentAmount: targetFee,
         paymentTransactionId: txnRef,
         status: 'application_received',
         statusHistory: [
@@ -287,7 +288,7 @@ export const CustomerDashboardPage: React.FC = () => {
           {
             status: 'application_received',
             title: 'Payment Completed & Application Received',
-            description: `Application facilitation fee of ₹50 verified via Razorpay (${txnRef}). Application is queued for verification.`,
+            description: `Application facilitation fee of ₹${targetFee} verified via Razorpay (${txnRef}). Application is queued for verification.`,
             timestamp: new Date().toISOString(),
             completed: true
           }
@@ -311,23 +312,23 @@ export const CustomerDashboardPage: React.FC = () => {
               id: 'item-1',
               description: `${app.serviceTitle} — Statutory Facilitation Fee`,
               quantity: 1,
-              unitPrice: 50,
-              total: 50
+              unitPrice: targetFee,
+              total: targetFee
             }
           ],
-          subtotal: 50,
+          subtotal: targetFee,
           taxAmount: 0,
           discount: 0,
           taxRate: 0,
-          totalAmount: 50,
-          amountPaid: 50,
+          totalAmount: targetFee,
+          amountPaid: targetFee,
           balanceDue: 0,
           paymentStatus: 'paid',
           invoiceStatus: 'finalized',
           payments: [
             {
               id: `pay_${Date.now()}`,
-              amount: 50,
+              amount: targetFee,
               paymentDate: new Date().toISOString().slice(0, 10),
               paymentMethod: 'Razorpay',
               transactionReference: txnRef,
@@ -553,7 +554,7 @@ export const CustomerDashboardPage: React.FC = () => {
                             className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>Pay ₹50</span>
+                            <span>Pay ₹{app.paymentAmount || 50}</span>
                           </button>
                         )}
 
@@ -662,7 +663,7 @@ export const CustomerDashboardPage: React.FC = () => {
                               className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer animate-pulse hover:animate-none"
                             >
                               <CreditCard className="w-3.5 h-3.5" />
-                              <span>Complete Your Payment – ₹50</span>
+                              <span>Complete Your Payment – ₹{app.paymentAmount || 50}</span>
                             </button>
                           ) : (
                             /* Payment Receipt Button */
