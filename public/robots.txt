@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+
+Sitemap: https://apply365.in/sitemap.xml
+Sitemap: https://apply-365.vercel.app/sitemap.xml
