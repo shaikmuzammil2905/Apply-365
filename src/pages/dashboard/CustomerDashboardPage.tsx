@@ -531,13 +531,14 @@ export const CustomerDashboardPage: React.FC = () => {
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-[#104A96]">
                               {String(app.status).replace(/_/g, ' ')}
                             </span>
-                            {linkedInv && (
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                linkedInv.paymentStatus === 'paid'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                Payment: {linkedInv.paymentStatus.replace('_', ' ')}
+                            {(app.paymentStatus === 'payment_completed' || linkedInv?.paymentStatus === 'paid' || app.paymentAmount) ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Paid (₹{app.paymentAmount || linkedInv?.totalAmount || 50})</span>
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800">
+                                Payment Pending
                               </span>
                             )}
                           </div>
@@ -548,11 +549,66 @@ export const CustomerDashboardPage: React.FC = () => {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
+                          {/* Payment Receipt Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const fee = app.paymentAmount || linkedInv?.totalAmount || 50;
+                              const invPdf = generateInvoicePDF({
+                                id: `inv_${app.id}`,
+                                invoiceNumber: `INV-${app.id.replace('APP365-', '')}`,
+                                applicationId: app.id,
+                                customerId: app.customerId,
+                                customerName: app.customerName,
+                                customerEmail: app.customerEmail,
+                                customerMobile: app.customerMobile,
+                                serviceName: app.serviceTitle,
+                                invoiceDate: (app.createdAt || app.submissionDate || new Date().toISOString()).slice(0, 10),
+                                dueDate: (app.createdAt || app.submissionDate || new Date().toISOString()).slice(0, 10),
+                                items: [
+                                  {
+                                    id: 'item-1',
+                                    description: `${app.serviceTitle} — Statutory Facilitation Fee`,
+                                    quantity: 1,
+                                    unitPrice: fee,
+                                    total: fee
+                                  }
+                                ],
+                                subtotal: fee,
+                                taxAmount: 0,
+                                discount: 0,
+                                taxRate: 0,
+                                totalAmount: fee,
+                                amountPaid: fee,
+                                balanceDue: 0,
+                                paymentStatus: 'paid',
+                                invoiceStatus: 'finalized',
+                                payments: [
+                                  {
+                                    id: `pay_${app.id}`,
+                                    amount: fee,
+                                    paymentDate: (app.createdAt || new Date().toISOString()).slice(0, 10),
+                                    paymentMethod: 'razorpay',
+                                    referenceNumber: app.paymentTransactionId || 'Razorpay Verified',
+                                    recordedBy: 'Razorpay Gateway',
+                                    notes: 'Application fee paid online'
+                                  }
+                                ],
+                                notes: `Official payment receipt for application ${app.id}.`
+                              });
+                              invPdf.save(`Receipt_${app.id}.pdf`);
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          >
+                            <Download className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Payment Receipt</span>
+                          </button>
+
                           {linkedInv && (
                             <button
                               type="button"
                               onClick={() => handleDownloadInvoicePDF(linkedInv)}
-                              className="px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-colors flex items-center gap-1.5"
+                              className="px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
                             >
                               <Receipt className="w-3.5 h-3.5" />
                               <span>Invoice PDF</span>
@@ -562,7 +618,7 @@ export const CustomerDashboardPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDownloadAppPDF(app)}
-                            className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5"
+                            className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>Download Soft Copy</span>
@@ -580,7 +636,7 @@ export const CustomerDashboardPage: React.FC = () => {
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl">
                         <div>Applicant: <strong className="text-slate-800 block truncate">{app.customerName}</strong></div>
-                        <div>Request Type: <strong className="text-slate-800 block truncate capitalize">{app.formData?.serviceType?.replace('-', ' ') || 'Standard'}</strong></div>
+                        <div>Payment Ref: <strong className="text-[#104A96] font-mono block truncate">{app.paymentTransactionId || (app.formData?._payment?.txnId) || 'Razorpay Verified'}</strong></div>
                         <div>Attached Proofs: <strong className="text-emerald-700 block">{app.documents.filter(d => d.status === 'uploaded' || d.fileUrl).length} files attached</strong></div>
                         <div>Mobile: <strong className="text-slate-800 block">{app.customerMobile}</strong></div>
                       </div>

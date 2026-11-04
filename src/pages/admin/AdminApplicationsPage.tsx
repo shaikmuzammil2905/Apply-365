@@ -12,7 +12,7 @@ import {
   ApplicationStatusHistoryItem, 
   ApplicationDeliveryRecord 
 } from '../../types/application';
-import { generateApplicationSummaryPDF } from '../../utils/pdfGenerator';
+import { generateApplicationSummaryPDF, generateInvoicePDF } from '../../utils/pdfGenerator';
 import { 
   FileText, 
   Search, 
@@ -34,7 +34,10 @@ import {
   Check,
   Receipt,
   Sparkles,
-  MessageSquare
+  MessageSquare,
+  CreditCard,
+  Lock,
+  BadgeCheck
 } from 'lucide-react';
 
 const ALL_STATUSES = [
@@ -58,6 +61,7 @@ export const AdminApplicationsPage: React.FC = () => {
   const [applications, setApplications] = useState<CustomerApplication[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'pending'>('all');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'last7' | 'last30' | 'thisMonth' | 'custom'>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -249,7 +253,16 @@ export const AdminApplicationsPage: React.FC = () => {
       }
     }
 
-    return matchesSearch && matchesStatus && matchesDate;
+    // Payment Status Filter
+    const isPaid = a.paymentStatus === 'payment_completed' || 
+                   (a.formData && a.formData._payment && a.formData._payment.status === 'payment_completed') ||
+                   Boolean(a.paymentAmount && a.paymentAmount > 0);
+    const matchesPayment = 
+      paymentFilter === 'all' ||
+      (paymentFilter === 'paid' && isPaid) ||
+      (paymentFilter === 'pending' && !isPaid);
+
+    return matchesSearch && matchesStatus && matchesDate && matchesPayment;
   });
 
   return (
@@ -323,6 +336,41 @@ export const AdminApplicationsPage: React.FC = () => {
                 {st.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Payment Status Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+              <CreditCard className="w-4 h-4 text-[#104A96]" />
+              <span>Filter by Payment:</span>
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              {[
+                { id: 'all', label: `All Payments (${applications.length})` },
+                { id: 'paid', label: `Fee Paid (${applications.filter(a => a.paymentStatus === 'payment_completed' || (a.formData && a.formData._payment && a.formData._payment.status === 'payment_completed') || a.paymentAmount).length})` },
+                { id: 'pending', label: `Pending (${applications.filter(a => !(a.paymentStatus === 'payment_completed' || (a.formData && a.formData._payment && a.formData._payment.status === 'payment_completed') || a.paymentAmount)).length})` }
+              ].map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPaymentFilter(p.id as any)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    paymentFilter === p.id 
+                      ? 'bg-[#104A96] text-white shadow-xs' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-100">
+            Total Revenue: ₹{applications.filter(a => a.paymentStatus === 'payment_completed' || (a.formData && a.formData._payment && a.formData._payment.status === 'payment_completed') || a.paymentAmount).reduce((sum, a) => sum + Number(a.paymentAmount || 50), 0).toLocaleString('en-IN')}
           </div>
         </div>
 
@@ -413,9 +461,10 @@ export const AdminApplicationsPage: React.FC = () => {
                   <th className="py-3 px-4">Application ID</th>
                   <th className="py-3 px-4">Applicant</th>
                   <th className="py-3 px-4">Service</th>
+                  <th className="py-3 px-4">Payment Status</th>
                   <th className="py-3 px-4">Documents</th>
                   <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4 text-center">Current Status</th>
+                  <th className="py-3 px-4 text-center">Application Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -432,6 +481,24 @@ export const AdminApplicationsPage: React.FC = () => {
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-800">{app.serviceTitle}</div>
                       <div className="text-slate-400 text-[10px]">{app.serviceType || 'Standard'}</div>
+                    </td>
+                    <td className="py-3 px-4">
+                      {app.paymentStatus === 'payment_completed' || (app.formData && app.formData._payment && app.formData._payment.status === 'payment_completed') || app.paymentAmount ? (
+                        <div>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Paid: ₹{app.paymentAmount || 50}</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400 block truncate max-w-[120px] mt-0.5" title={app.paymentTransactionId || 'Razorpay Verified'}>
+                            {app.paymentTransactionId || (app.formData?._payment?.txnId) || 'pay_verified'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          <span>Pending</span>
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px]">
@@ -543,6 +610,107 @@ export const AdminApplicationsPage: React.FC = () => {
             {/* Scrollable Modal Content */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 overscroll-contain">
               
+              {/* Payment Verification & Transaction Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-50/70 via-teal-50/50 to-emerald-50/70 border border-emerald-200/90 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-emerald-700" />
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-950">
+                      Payment Verification & Transaction Details
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedApp) return;
+                      try {
+                        const feeAmt = selectedApp.paymentAmount || 50;
+                        const invPdf = generateInvoicePDF({
+                          id: `inv_${selectedApp.id}`,
+                          invoiceNumber: `INV-${selectedApp.id.replace('APP365-', '')}`,
+                          applicationId: selectedApp.id,
+                          customerId: selectedApp.customerId,
+                          customerName: selectedApp.customerName,
+                          customerEmail: selectedApp.customerEmail,
+                          customerMobile: selectedApp.customerMobile,
+                          serviceName: selectedApp.serviceTitle,
+                          invoiceDate: (selectedApp.createdAt || selectedApp.submissionDate || new Date().toISOString()).slice(0, 10),
+                          dueDate: (selectedApp.createdAt || selectedApp.submissionDate || new Date().toISOString()).slice(0, 10),
+                          items: [
+                            {
+                              id: 'item-1',
+                              description: `${selectedApp.serviceTitle} — Statutory Application Facilitation Fee`,
+                              quantity: 1,
+                              unitPrice: feeAmt,
+                              total: feeAmt
+                            }
+                          ],
+                          subtotal: feeAmt,
+                          taxAmount: 0,
+                          discount: 0,
+                          taxRate: 0,
+                          totalAmount: feeAmt,
+                          amountPaid: feeAmt,
+                          balanceDue: 0,
+                          paymentStatus: 'paid',
+                          invoiceStatus: 'finalized',
+                          payments: [
+                            {
+                              id: `pay_${selectedApp.id}`,
+                              amount: feeAmt,
+                              paymentDate: (selectedApp.createdAt || new Date().toISOString()).slice(0, 10),
+                              paymentMethod: 'razorpay',
+                              referenceNumber: selectedApp.paymentTransactionId || 'Verified',
+                              recordedBy: 'Razorpay Gateway',
+                              notes: 'Mandatory Application Fee'
+                            }
+                          ],
+                          notes: `Official payment receipt for application ${selectedApp.id}.`
+                        });
+                        invPdf.save(`Receipt_${selectedApp.id}.pdf`);
+                      } catch (err) {
+                        console.warn(err);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-800 text-xs font-bold transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Download Payment Receipt</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Payment Status</span>
+                    <span className="font-extrabold text-emerald-800 mt-0.5 inline-flex items-center gap-1 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>{selectedApp.paymentStatus === 'payment_completed' || selectedApp.paymentAmount ? 'Payment Completed' : 'Payment Received'}</span>
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Amount Paid</span>
+                    <span className="font-black text-slate-900 mt-0.5 block text-sm">
+                      ₹{selectedApp.paymentAmount || 50}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Razorpay Txn ID</span>
+                    <span className="font-mono font-bold text-[#104A96] mt-0.5 block truncate" title={selectedApp.paymentTransactionId || 'pay_verified'}>
+                      {selectedApp.paymentTransactionId || (selectedApp.formData?._payment?.txnId) || 'pay_verified'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Payment Method</span>
+                    <span className="font-semibold text-slate-800 mt-0.5 block">
+                      Razorpay Checkout (UPI/Cards)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Applicant Details */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs">
                 <div>

@@ -161,9 +161,10 @@ export async function saveApplication(app: CustomerApplication): Promise<void> {
 export async function getCustomerApplications(customerId: string): Promise<CustomerApplication[]> {
   if (!customerId) return [];
 
+  let apps: CustomerApplication[] = [];
   try {
     const db = await openDB();
-    const apps: CustomerApplication[] = await new Promise((resolve, reject) => {
+    apps = await new Promise((resolve, reject) => {
       const tx = db.transaction(APPLICATIONS_STORE, 'readonly');
       const store = tx.objectStore(APPLICATIONS_STORE);
       const index = store.index('customerId');
@@ -171,17 +172,31 @@ export async function getCustomerApplications(customerId: string): Promise<Custo
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
-
-    if (apps && apps.length > 0) {
-      return apps.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    }
   } catch (err) {
     console.warn('IndexedDB read failed, checking fallback', err);
   }
 
-  // Fallback
+  // Also read from fallback and localStorage sync
   const fallback = getFallbackApps().filter((item) => item.customerId === customerId);
-  return fallback.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  let syncApps: CustomerApplication[] = [];
+  try {
+    const raw = localStorage.getItem('apply365_applications');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        syncApps = parsed.filter((item: any) => item.customerId === customerId || item.customer_id === customerId);
+      }
+    }
+  } catch {}
+
+  const map = new Map<string, CustomerApplication>();
+  [...fallback, ...apps, ...syncApps].forEach(a => {
+    if (a && a.id) {
+      map.set(a.id, a);
+    }
+  });
+
+  return Array.from(map.values()).sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 }
 
 export async function getApplicationById(id: string, customerId: string): Promise<CustomerApplication | null> {

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { getServiceBySlug, getInitialServiceBySlug } from '../services/dataSyncService';
+import { getServiceBySlug, getInitialServiceBySlug, getWebsiteSettings, saveNewApplication } from '../services/dataSyncService';
 import { servicesData } from '../data/servicesData';
 import { ServiceDetail } from '../types/services';
+import { WebsiteSettings } from '../types/admin';
 import { getServiceAppConfig, ServiceAppConfig } from '../data/serviceApplicationConfigs';
 import { useAuth } from '../context/AuthContext';
 import { saveApplication } from '../services/dbService';
+import { openRazorpayCheckout } from '../services/razorpayService';
 import { CustomerApplication, ApplicationDocument } from '../types/application';
 import { DocumentPreviewModal } from '../components/DocumentPreviewModal';
 import { Breadcrumbs } from '../components/Breadcrumbs';
+import { generateInvoicePDF, formatINR } from '../utils/pdfGenerator';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle2, 
@@ -37,7 +40,13 @@ import {
   Copy,
   Sparkles,
   Save,
-  HelpCircle
+  HelpCircle,
+  Lock,
+  Unlock,
+  Download,
+  Receipt,
+  BadgeCheck,
+  Zap
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -113,6 +122,52 @@ export const ServiceDetailPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [showInfoAccordion, setShowInfoAccordion] = useState(false);
+
+  // Settings & Mandatory Payment Gate State
+  const sessionPaymentKey = `apply365_verified_payment_${activeSlug}`;
+  const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings | null>(null);
+  const [isPaymentVerified, setIsPaymentVerified] = useState<boolean>(false);
+  const [paymentTxnId, setPaymentTxnId] = useState<string>('');
+  const [paymentAmount, setPaymentAmount] = useState<number>(50);
+  const [paymentVerifiedDate, setPaymentVerifiedDate] = useState<string>('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
+  const [showPreDocPreview, setShowPreDocPreview] = useState<boolean>(true);
+
+  // Load website settings & verify session payment status
+  useEffect(() => {
+    let isMounted = true;
+    getWebsiteSettings().then(st => {
+      if (isMounted && st) {
+        setWebsiteSettings(st);
+        const fee = st.applicationFee !== undefined ? Number(st.applicationFee) : 50;
+        setPaymentAmount(fee);
+        // If mandatory payment is disabled or fee is 0, unlock immediately
+        if (st.requirePaymentBeforeApply === false || fee <= 0) {
+          setIsPaymentVerified(true);
+        }
+      }
+    });
+
+    // Check if customer already paid for this service in current browser session
+    try {
+      const stored = sessionStorage.getItem(sessionPaymentKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.txnId) {
+          setIsPaymentVerified(true);
+          setPaymentTxnId(parsed.txnId);
+          if (parsed.amount) setPaymentAmount(parsed.amount);
+          if (parsed.date) setPaymentVerifiedDate(parsed.date);
+        }
+      }
+    } catch (e) {
+      console.warn('Session payment check error', e);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeSlug, sessionPaymentKey]);
 
   // Initialize or re-initialize when slug or service data changes
   useEffect(() => {
@@ -339,9 +394,76 @@ export const ServiceDetailPage: React.FC = () => {
     );
   };
 
+  const handleInitiatePayment = async () => {
+    setErrorMsg('');
+    setIsProcessingPayment(true);
+
+    try {
+      const payerName = formData.fullName || currentUser?.name || 'Customer';
+      const payerEmail = formData.email || currentUser?.email || 'applyallservices365@gmail.com';
+      const payerPhone = formData.mobile || currentUser?.mobile || '9121992365';
+      const customKeyId = websiteSettings?.paymentGateway?.keyId;
+
+      const response = await openRazorpayCheckout({
+        amount: paymentAmount,
+        currency: 'INR',
+        name: websiteSettings?.siteName || 'Apply365 — Services for People',
+        description: `Application Fee: ${service.title}`,
+        customerName: payerName,
+        customerEmail: payerEmail,
+        customerPhone: payerPhone,
+        themeColor: websiteSettings?.paymentGateway?.themeColor || '#104A96',
+        notes: {
+          service_slug: activeSlug,
+          service_title: service.title,
+          customer_name: payerName,
+          customer_phone: payerPhone,
+          purpose: 'Mandatory Application Processing Fee'
+        }
+      }, customKeyId);
+
+      if (response && response.razorpay_payment_id) {
+        const txnId = response.razorpay_payment_id;
+        const nowIso = new Date().toISOString();
+        const payData = {
+          txnId,
+          amount: paymentAmount,
+          date: nowIso
+        };
+        sessionStorage.setItem(sessionPaymentKey, JSON.stringify(payData));
+        setIsPaymentVerified(true);
+        setPaymentTxnId(txnId);
+        setPaymentVerifiedDate(nowIso);
+
+        try {
+          confetti({
+            particleCount: 80,
+            spread: 70,
+            origin: { y: 0.5 }
+          });
+        } catch {}
+
+        window.scrollTo({ top: 380, behavior: 'smooth' });
+      }
+    } catch (err: any) {
+      console.warn('Payment failed or cancelled:', err);
+      setErrorMsg(err?.message || 'Payment was not completed. Please complete payment to unlock the application form.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    // Check mandatory payment gate
+    const requiresPayment = websiteSettings?.requirePaymentBeforeApply !== false && paymentAmount > 0;
+    if (requiresPayment && !isPaymentVerified) {
+      setErrorMsg(`Payment of ₹${paymentAmount} is mandatory before submitting your application. Please complete payment above.`);
+      window.scrollTo({ top: 280, behavior: 'smooth' });
+      return;
+    }
 
     // Comprehensive Field Validation
     const errors: Record<string, string> = {};
@@ -375,11 +497,18 @@ export const ServiceDetailPage: React.FC = () => {
         id: uniqueId,
         customerId,
         customerName: formData.fullName || currentUser?.name || 'Customer',
-        customerEmail: formData.email || currentUser?.email || 'customer@apply365.in',
-        customerMobile: formData.mobile || currentUser?.mobile || '9876543210',
+        customerEmail: formData.email || currentUser?.email || 'applyallservices365@gmail.com',
+        customerMobile: formData.mobile || currentUser?.mobile || '9121992365',
         serviceId: config.id,
+        serviceSlug: activeSlug,
         serviceTitle: config.title,
+        serviceType: selectedSubService || 'Standard',
         status: 'Submitted',
+        paymentStatus: isPaymentVerified ? 'payment_completed' : 'free_tier',
+        paymentAmount: isPaymentVerified ? paymentAmount : 0,
+        paymentTransactionId: paymentTxnId || `pay_verified_${Date.now()}`,
+        paymentDate: isPaymentVerified ? (paymentVerifiedDate || now.toISOString()) : undefined,
+        paymentMethod: 'Razorpay',
         submissionDate: now.toISOString(),
         createdAt: now.toISOString(),
         formData: formData as any,
@@ -388,6 +517,10 @@ export const ServiceDetailPage: React.FC = () => {
       };
 
       await saveApplication(appRecord);
+      await saveNewApplication(appRecord);
+      try {
+        sessionStorage.removeItem(sessionPaymentKey);
+      } catch {}
       setSubmittedApp(appRecord);
       
       // Fire celebration confetti
@@ -404,6 +537,57 @@ export const ServiceDetailPage: React.FC = () => {
       setErrorMsg('Application submission error. Please try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadReceipt = () => {
+    if (!submittedApp) return;
+    try {
+      const invPdf = generateInvoicePDF({
+        id: `inv_${submittedApp.id}`,
+        invoiceNumber: `INV-${submittedApp.id.replace('APP365-', '')}`,
+        applicationId: submittedApp.id,
+        customerId: submittedApp.customerId,
+        customerName: submittedApp.customerName,
+        customerEmail: submittedApp.customerEmail,
+        customerMobile: submittedApp.customerMobile,
+        serviceName: submittedApp.serviceTitle,
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        dueDate: new Date().toISOString().slice(0, 10),
+        items: [
+          {
+            id: 'item-1',
+            description: `${submittedApp.serviceTitle} — Statutory Application Facilitation Fee`,
+            quantity: 1,
+            unitPrice: submittedApp.paymentAmount || paymentAmount || 50,
+            total: submittedApp.paymentAmount || paymentAmount || 50
+          }
+        ],
+        subtotal: submittedApp.paymentAmount || paymentAmount || 50,
+        taxAmount: 0,
+        discount: 0,
+        taxRate: 0,
+        totalAmount: submittedApp.paymentAmount || paymentAmount || 50,
+        amountPaid: submittedApp.paymentAmount || paymentAmount || 50,
+        balanceDue: 0,
+        paymentStatus: 'paid',
+        invoiceStatus: 'finalized',
+        payments: [
+          {
+            id: `pay_${submittedApp.id}`,
+            amount: submittedApp.paymentAmount || paymentAmount || 50,
+            paymentDate: new Date().toISOString().slice(0, 10),
+            paymentMethod: 'razorpay',
+            referenceNumber: submittedApp.paymentTransactionId || paymentTxnId || 'Verified',
+            recordedBy: 'Razorpay Payment Gateway',
+            notes: 'Application fee paid online via Razorpay'
+          }
+        ],
+        notes: `Official payment receipt for application ${submittedApp.id}. All fees inclusive.`
+      });
+      invPdf.save(`Apply365_${submittedApp.id}_Receipt.pdf`);
+    } catch (err) {
+      console.warn('PDF download error:', err);
     }
   };
 
@@ -539,47 +723,334 @@ export const ServiceDetailPage: React.FC = () => {
                 <span className="text-xs font-bold text-slate-800 truncate block">{submittedApp.serviceTitle}</span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Initial Status</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Application Status</span>
                 <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                  Under Verification
+                  Application Received
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Applicant</span>
-                <span className="text-xs font-bold text-slate-800 truncate block">{submittedApp.customerName}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Status</span>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                  Fee Paid: ₹{submittedApp.paymentAmount || paymentAmount || 50}
+                </span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Uploaded Files</span>
-                <span className="text-xs font-bold text-emerald-700">
-                  {submittedApp.documents.filter((d) => d.status === 'uploaded').length} / {submittedApp.documents.length} Files
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Razorpay Txn ID</span>
+                <span className="text-[11px] font-mono font-bold text-slate-700 truncate block">
+                  {submittedApp.paymentTransactionId || paymentTxnId || 'Verified'}
                 </span>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="pt-2 max-w-md mx-auto space-y-3">
               <button
                 type="button"
-                onClick={() => {
-                  setSubmittedApp(null);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs sm:text-sm font-bold shadow-md transition-all"
+                onClick={handleDownloadReceipt}
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                Apply for Another Service
+                <Download className="w-4 h-4" />
+                <span>Download Payment Receipt (PDF)</span>
               </button>
 
-              <Link
-                to="/dashboard"
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors"
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubmittedApp(null);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer"
+                >
+                  Apply for Another Service
+                </button>
+
+                <Link
+                  to="/dashboard"
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors text-center"
+                >
+                  Go to Customer Dashboard
+                </Link>
+              </div>
+            </div>
+
+          </div>
+        ) : (websiteSettings?.requirePaymentBeforeApply !== false && paymentAmount > 0 && !isPaymentVerified) ? (
+          /* ========================================================================= */
+          /* MANDATORY PAYMENT GATEWAY SCREEN (Step 1 of Application)                  */
+          /* ========================================================================= */
+          <div className="space-y-8 animate-in fade-in duration-300">
+            
+            {/* Payment Gate Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/80 space-y-8">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#104A96] text-xs font-bold tracking-wide uppercase mb-2">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Step 1: Mandatory Application Fee</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    Statutory Facilitation Fee for {service.title}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
+                    As per Apply365 regulatory facilitation policy, a mandatory fee of <strong>₹{paymentAmount}</strong> is required to unlock your official application form and document checklist.
+                  </p>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 self-start sm:self-auto">
+                  <Lock className="w-4 h-4 text-amber-600" />
+                  <span className="text-xs font-bold text-amber-800">Form Locked Until Payment</span>
+                </div>
+              </div>
+
+              {/* Fee Breakdown & Razorpay Checkout Box */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                {/* Left Side: Summary & Benefits */}
+                <div className="lg:col-span-7 space-y-6">
+                  
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Payment Summary
+                    </h3>
+
+                    <div className="space-y-3 divide-y divide-slate-200/60 text-xs sm:text-sm">
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-semibold text-slate-700">Selected Service</span>
+                        <span className="font-bold text-slate-900">{service.title}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="text-slate-600">Statutory Facilitation Fee</span>
+                        <span className="font-bold text-slate-900">₹{paymentAmount}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="text-slate-600">Document Verification & KYC Check</span>
+                        <span className="font-bold text-emerald-600">Included (₹0)</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="text-slate-600">SMS & WhatsApp Status Alerts</span>
+                        <span className="font-bold text-emerald-600">Included (₹0)</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="text-slate-600">Payment Gateway Platform Charges</span>
+                        <span className="font-bold text-emerald-600">Waived (₹0)</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 text-sm sm:text-base">
+                        <span className="font-extrabold text-slate-900">Total Amount Payable</span>
+                        <span className="font-black text-2xl text-[#104A96]">₹{paymentAmount}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trust & Guarantee Indicators */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-left">
+                    <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 flex items-center gap-2.5">
+                      <ShieldCheck className="w-5 h-5 text-[#104A96] shrink-0" />
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-800 block">256-Bit SSL</span>
+                        <span className="text-[10px] text-slate-500 block">Bank Grade Security</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center gap-2.5">
+                      <Zap className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-800 block">Instant Unlock</span>
+                        <span className="text-[10px] text-slate-500 block">Immediate Access</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-purple-50/50 border border-purple-100 flex items-center gap-2.5 col-span-2 sm:col-span-1">
+                      <Receipt className="w-5 h-5 text-purple-600 shrink-0" />
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-800 block">Tax Receipt</span>
+                        <span className="text-[10px] text-slate-500 block">Instant PDF Invoice</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Right Side: Payer Confirmation & Pay Button */}
+                <div className="lg:col-span-5 bg-gradient-to-b from-slate-50 to-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-5">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#104A96] block">
+                      Applicant Contact Information
+                    </span>
+                    <p className="text-xs text-slate-500">
+                      Payment receipt and application tracking details will be sent to:
+                    </p>
+                  </div>
+
+                  <div className="space-y-3.5">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.fullName || ''}
+                        onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                        placeholder="Enter your official full name"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        Mobile Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.mobile || ''}
+                        onChange={(e) => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                        placeholder="10-digit mobile number"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        Email Address <span className="text-slate-400 font-normal">(for receipt)</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.email || ''}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="yourname@gmail.com"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Primary Pay Now Button */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleInitiatePayment}
+                      disabled={isProcessingPayment}
+                      className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#104A96] to-[#0A2F63] hover:from-[#0c3c7d] hover:to-[#07244c] text-white font-extrabold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all transform active:scale-[0.99] flex items-center justify-center gap-3 disabled:opacity-60 cursor-pointer"
+                    >
+                      {isProcessingPayment ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          <span>Connecting to Razorpay...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-5 h-5 text-amber-300" />
+                          <span>Pay ₹{paymentAmount} & Unlock Application</span>
+                        </>
+                      )}
+                    </button>
+                    
+                    <div className="flex items-center justify-center gap-2 mt-3 text-[11px] text-slate-500 font-medium">
+                      <span>Powered by</span>
+                      <span className="font-bold text-slate-800">Razorpay</span>
+                      <span>• UPI / Cards / NetBanking / QR</span>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* PRE-PAYMENT DOCUMENT CHECKLIST PREVIEW */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-4">
+              <div 
+                onClick={() => setShowPreDocPreview(!showPreDocPreview)}
+                className="flex items-center justify-between cursor-pointer select-none"
               >
-                Go to Customer Dashboard
-              </Link>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#104A96] flex items-center justify-center">
+                    <FileCheck2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                      Documents You Will Need to Upload After Payment ({service.documents.length})
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Preview the document requirements before proceeding with your payment.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
+                  {showPreDocPreview ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </div>
+              </div>
+
+              {showPreDocPreview && (
+                <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-200">
+                  {service.documents.map((doc, idx) => (
+                    <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 text-[#104A96] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                        {idx + 1}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-slate-900">{doc.name}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            doc.isMandatory !== false 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {doc.isMandatory !== false ? 'Mandatory' : 'Optional'}
+                          </span>
+                        </div>
+                        {doc.description && (
+                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                            {doc.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>
         ) : (
           <form onSubmit={handleSubmitApplication} className="space-y-8">
+            
+            {/* ========================================================================= */}
+            {/* VERIFIED PAYMENT REASSURANCE BANNER                                       */}
+            {/* ========================================================================= */}
+            {isPaymentVerified && (websiteSettings?.requirePaymentBeforeApply !== false) && (
+              <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs sm:text-sm font-extrabold text-emerald-950">
+                        Payment Verified: ₹{paymentAmount}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200/80 text-emerald-900 uppercase tracking-wider">
+                        Form Unlocked
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      Razorpay Payment ID: <span className="font-mono font-bold">{paymentTxnId || 'Verified'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-emerald-700 bg-white/80 border border-emerald-200 px-3.5 py-1.5 rounded-xl font-medium self-start sm:self-auto shrink-0 shadow-2xs">
+                  ✓ Ready for Document Upload & Submission
+                </div>
+              </div>
+            )}
             
             {/* ========================================================================= */}
             {/* 1. REQUIRED DOCUMENTS CHECKLIST SECTION (Requirement 11)                 */}

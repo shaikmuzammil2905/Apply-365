@@ -18,14 +18,17 @@ export interface InvoiceItem {
 
 export interface InvoicePayment {
   id: string;
-  invoiceId: string;
+  invoiceId?: string;
   amount: number;
-  paymentMethod: 'UPI' | 'Bank Transfer' | 'Cash' | 'Credit/Debit Card' | 'Net Banking' | 'Other';
+  paymentMethod: 'UPI' | 'Bank Transfer' | 'Cash' | 'Credit/Debit Card' | 'Net Banking' | 'Razorpay' | 'Other' | string;
   transactionReference?: string;
+  referenceNumber?: string;
   paymentDate: string;
   paymentNotes?: string;
+  notes?: string;
   recordedBy?: string;
-  createdAt: string;
+  receiptUrl?: string;
+  createdAt?: string;
 }
 
 export interface CustomerInvoice {
@@ -54,7 +57,7 @@ export interface CustomerInvoice {
   notes?: string;
   paymentInstructions?: string;
   createdBy?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 

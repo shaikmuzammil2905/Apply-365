@@ -176,6 +176,8 @@ export const INITIAL_WEBSITE_SETTINGS: WebsiteSettings = {
     showWhatsAppButton: true,
     showAlternatePhone: true
   },
+  applicationFee: 50,
+  requirePaymentBeforeApply: true,
   paymentGateway: {
     provider: 'razorpay',
     keyId: 'rzp_test_TvkCL1OAbneDCO',
@@ -871,24 +873,32 @@ export async function getAllApplications(): Promise<CustomerApplication[]> {
       .order('created_at', { ascending: false });
 
     if (!error && data && data.length > 0) {
-      const apps: CustomerApplication[] = data.map((item: any) => ({
-        id: item.id,
-        customerId: item.customer_id || item.customerId || '',
-        customerName: item.customer_name || item.customerName,
-        customerMobile: item.customer_mobile || item.customerMobile,
-        customerEmail: item.customer_email || item.customerEmail,
-        serviceId: item.service_slug || item.serviceId || 'aadhaar',
-        serviceSlug: item.service_slug || item.serviceSlug,
-        serviceTitle: item.service_title || item.serviceTitle,
-        serviceType: item.service_type || item.serviceType || 'Standard',
-        formData: item.form_data || item.formData || {},
-        documents: item.documents || [],
-        status: item.status || 'submitted',
-        priority: item.priority || 'standard',
-        submissionDate: item.created_at || item.submissionDate || new Date().toISOString(),
-        createdAt: item.created_at || item.createdAt || new Date().toISOString(),
-        updatedAt: item.updated_at || item.updatedAt || new Date().toISOString()
-      }));
+      const apps: CustomerApplication[] = data.map((item: any) => {
+        const paymentInfo = item.form_data?._payment || {};
+        return {
+          id: item.id,
+          customerId: item.customer_id || item.customerId || '',
+          customerName: item.customer_name || item.customerName,
+          customerMobile: item.customer_mobile || item.customerMobile,
+          customerEmail: item.customer_email || item.customerEmail,
+          serviceId: item.service_slug || item.serviceId || 'aadhaar',
+          serviceSlug: item.service_slug || item.serviceSlug,
+          serviceTitle: item.service_title || item.serviceTitle,
+          serviceType: item.service_type || item.serviceType || 'Standard',
+          formData: item.form_data || item.formData || {},
+          documents: item.documents || [],
+          status: item.status || 'submitted',
+          paymentStatus: paymentInfo.status || item.payment_status || 'payment_completed',
+          paymentAmount: paymentInfo.amount !== undefined ? Number(paymentInfo.amount) : 50,
+          paymentTransactionId: paymentInfo.txnId || item.payment_transaction_id || '',
+          paymentDate: paymentInfo.date || item.created_at,
+          paymentMethod: paymentInfo.method || 'Razorpay',
+          priority: item.priority || 'standard',
+          submissionDate: item.created_at || item.submissionDate || new Date().toISOString(),
+          createdAt: item.created_at || item.createdAt || new Date().toISOString(),
+          updatedAt: item.updated_at || item.updatedAt || new Date().toISOString()
+        };
+      });
       setStored(APPLICATIONS_KEY, apps);
       return apps;
     }
@@ -897,6 +907,98 @@ export async function getAllApplications(): Promise<CustomerApplication[]> {
   }
 
   return getStored<CustomerApplication[]>(APPLICATIONS_KEY, []);
+}
+
+export async function saveNewApplication(app: CustomerApplication): Promise<CustomerApplication> {
+  const all = getStored<CustomerApplication[]>(APPLICATIONS_KEY, []);
+  const existingIdx = all.findIndex(a => a.id === app.id);
+  if (existingIdx >= 0) {
+    all[existingIdx] = app;
+  } else {
+    all.unshift(app);
+  }
+  setStored(APPLICATIONS_KEY, all);
+
+  try {
+    const payload = {
+      id: app.id,
+      customer_id: app.customerId,
+      customer_name: app.customerName,
+      customer_mobile: app.customerMobile,
+      customer_email: app.customerEmail,
+      service_slug: app.serviceSlug || app.serviceId,
+      service_title: app.serviceTitle,
+      service_type: app.serviceType || 'Standard',
+      form_data: {
+        ...(app.formData || {}),
+        _payment: {
+          status: app.paymentStatus || 'payment_completed',
+          amount: app.paymentAmount ?? 50,
+          txnId: app.paymentTransactionId || '',
+          date: app.paymentDate || new Date().toISOString(),
+          method: app.paymentMethod || 'Razorpay'
+        }
+      },
+      documents: app.documents || [],
+      status: app.status || 'submitted',
+      priority: app.priority || 'standard',
+      created_at: app.createdAt || new Date().toISOString(),
+      updated_at: app.updatedAt || new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('applications').upsert(payload);
+    if (error) {
+      console.warn('Supabase application upsert error:', error);
+    }
+  } catch (err) {
+    console.warn('Supabase application upsert failed:', err);
+  }
+
+  // Auto create / record corresponding paid invoice
+  try {
+    if (app.paymentStatus === 'payment_completed') {
+      const invNum = `INV-${app.id.replace('APP365-', '')}`;
+      const fee = Number(app.paymentAmount || 50);
+      await createInvoice({
+        id: `inv_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        invoiceNumber: invNum,
+        applicationId: app.id,
+        customerId: app.customerId,
+        customerName: app.customerName,
+        customerEmail: app.customerEmail,
+        customerMobile: app.customerMobile,
+        serviceName: app.serviceTitle,
+        subtotal: fee,
+        discount: 0,
+        taxRate: 0,
+        taxAmount: 0,
+        totalAmount: fee,
+        amountPaid: fee,
+        balanceDue: 0,
+        paymentStatus: 'paid',
+        invoiceStatus: 'finalized',
+        payments: [
+          {
+            id: `pay_${Date.now()}`,
+            amount: fee,
+            paymentDate: new Date().toISOString().slice(0, 10),
+            paymentMethod: 'razorpay',
+            referenceNumber: app.paymentTransactionId || `pay_verified_${Date.now()}`,
+            notes: 'Mandatory Application Fee paid at time of application submission',
+            recordedBy: 'Razorpay Payment Gateway',
+            receiptUrl: ''
+          }
+        ],
+        notes: `Application Fee for ${app.serviceTitle} paid via Razorpay (Txn ID: ${app.paymentTransactionId || 'Verified'})`
+      });
+    }
+  } catch (invErr) {
+    console.warn('Auto invoice creation note:', invErr);
+  }
+
+  await logActivity('Application Submitted', 'application', app.id, `New application ${app.id} for ${app.serviceTitle} (${app.paymentStatus || 'paid'})`);
+  notifyDataChange('applications', app);
+  return app;
 }
 
 export async function updateApplicationStatus(id: string, status: CustomerApplication['status']): Promise<void> {
@@ -1648,6 +1750,8 @@ export async function getWebsiteSettings(): Promise<WebsiteSettings> {
         socialLinks: data.social_links || data.socialLinks || INITIAL_WEBSITE_SETTINGS.socialLinks,
         businessHours: extra.businessHours || data.business_hours || INITIAL_WEBSITE_SETTINGS.businessHours,
         contactVisibility: extra.contactVisibility || data.contact_visibility || INITIAL_WEBSITE_SETTINGS.contactVisibility,
+        applicationFee: extra.applicationFee !== undefined ? Number(extra.applicationFee) : INITIAL_WEBSITE_SETTINGS.applicationFee,
+        requirePaymentBeforeApply: extra.requirePaymentBeforeApply !== undefined ? Boolean(extra.requirePaymentBeforeApply) : INITIAL_WEBSITE_SETTINGS.requirePaymentBeforeApply,
         paymentGateway: extra.paymentGateway || data.payment_gateway || INITIAL_WEBSITE_SETTINGS.paymentGateway,
         updatedAt: data.updated_at || data.updatedAt
       };
@@ -1674,7 +1778,9 @@ export async function saveWebsiteSettings(settings: WebsiteSettings): Promise<We
     customerServiceEmail: updated.customerServiceEmail,
     businessHours: updated.businessHours,
     contactVisibility: updated.contactVisibility,
-    paymentGateway: updated.paymentGateway
+    paymentGateway: updated.paymentGateway,
+    applicationFee: updated.applicationFee !== undefined ? Number(updated.applicationFee) : 50,
+    requirePaymentBeforeApply: updated.requirePaymentBeforeApply !== undefined ? Boolean(updated.requirePaymentBeforeApply) : true
   };
 
   const socialLinksWithExtra = {

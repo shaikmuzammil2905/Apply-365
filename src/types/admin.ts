@@ -125,6 +125,8 @@ export interface WebsiteSettings {
   };
   businessHours?: BusinessHoursConfig;
   contactVisibility?: ContactVisibilitySettings;
+  applicationFee?: number;
+  requirePaymentBeforeApply?: boolean;
   paymentGateway?: {
     provider: 'razorpay';
     keyId: string;

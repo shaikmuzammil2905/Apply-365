@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getWebsiteSettings, saveWebsiteSettings } from '../../services/dataSyncService';
+import { getWebsiteSettings, saveWebsiteSettings, getAllApplications } from '../../services/dataSyncService';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { testSupabaseConnection, SUPABASE_URL } from '../../services/supabaseClient';
 import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET, uploadToCloudinary } from '../../services/cloudinaryService';
@@ -71,10 +71,31 @@ export const AdminSettingsPage: React.FC = () => {
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
+  // Application payment statistics
+  const [appStats, setAppStats] = useState({ totalPaid: 0, totalRevenue: 0, pendingCount: 0 });
+
   useEffect(() => {
     getWebsiteSettings().then(setSettings);
     checkSupabase();
+    loadAppStats();
   }, []);
+
+  const loadAppStats = async () => {
+    try {
+      const apps = await getAllApplications();
+      if (apps && Array.isArray(apps)) {
+        const paid = apps.filter(a => a.paymentStatus === 'payment_completed' || (a.formData && a.formData._payment && a.formData._payment.status === 'payment_completed'));
+        const revenue = paid.reduce((sum, a) => sum + Number(a.paymentAmount || 50), 0);
+        setAppStats({
+          totalPaid: paid.length,
+          totalRevenue: revenue,
+          pendingCount: Math.max(0, apps.length - paid.length)
+        });
+      }
+    } catch (e) {
+      console.warn('Load app stats note:', e);
+    }
+  };
 
   const checkSupabase = async () => {
     setIsTestingSupabase(true);
@@ -593,13 +614,178 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
       {activeTab === 'payments' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           
+          {/* Payment & Application Fee KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Total Fees Collected
+              </span>
+              <span className="text-2xl font-black text-[#104A96]">
+                ₹{appStats.totalRevenue.toLocaleString('en-IN')}
+              </span>
+              <p className="text-[11px] text-slate-500 font-medium">From verified customer applications</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Paid Applications
+              </span>
+              <span className="text-2xl font-black text-emerald-600">
+                {appStats.totalPaid}
+              </span>
+              <p className="text-[11px] text-slate-500 font-medium">Successfully processed with Razorpay</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Application Fee
+              </span>
+              <span className="text-2xl font-black text-amber-600">
+                ₹{settings.applicationFee || 50}
+              </span>
+              <p className="text-[11px] text-slate-500 font-medium">Mandatory fee before application</p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                Mandatory Payment Gate
+              </span>
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <span className={`w-2 h-2 rounded-full ${settings.requirePaymentBeforeApply !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                <span className={`text-base font-extrabold ${settings.requirePaymentBeforeApply !== false ? 'text-emerald-700' : 'text-slate-600'}`}>
+                  {settings.requirePaymentBeforeApply !== false ? 'Enforced' : 'Disabled'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">App form locked until paid</p>
+            </div>
+          </div>
+
+          {/* APPLICATION FEE CONFIGURATION CARD */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#104A96]" />
+                  <h3 className="text-base font-extrabold text-slate-900">Application Fee & Mandatory Payment Policy</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#104A96] text-[10px] font-bold uppercase tracking-wider">
+                    Customer Facing
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Configure the mandatory facilitation fee customers must pay via Razorpay before unlocking and submitting applications.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={isSaving}
+                className="px-4 py-2.5 rounded-xl bg-[#104A96] hover:bg-[#0c3c7d] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 self-start sm:self-auto disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSaving ? 'Saving...' : 'Save Configuration'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              
+              {/* Fee Input & Presets */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Mandatory Application Fee (₹ INR) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 text-base font-bold text-slate-500">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="5"
+                    value={settings.applicationFee ?? 50}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      applicationFee: Math.max(0, Number(e.target.value))
+                    })}
+                    placeholder="50"
+                    className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#104A96] text-slate-900 bg-white"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Default fee amount charged across all statutory services (Aadhaar, PAN, Voter ID, MSME, etc.)
+                </p>
+
+                {/* Quick Presets */}
+                <div className="pt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                    Quick Preset Amounts:
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[50, 60, 75, 100, 150, 200].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setSettings({ ...settings, applicationFee: amt })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          (settings.applicationFee ?? 50) === amt
+                            ? 'bg-[#104A96] text-white shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        ₹{amt} {amt === 50 ? '(Default)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Mandatory Gate Switch */}
+              <div className="space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200/80">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Enforce Mandatory Payment Before Submission
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      When enabled, customer cannot view or submit the application form until ₹{settings.applicationFee || 50} payment is verified by Razorpay.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                    <input
+                      type="checkbox"
+                      checked={settings.requirePaymentBeforeApply !== false}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        requirePaymentBeforeApply: e.target.checked
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#104A96]"></div>
+                  </label>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white border border-slate-200/60 text-[11px] text-slate-600 space-y-1">
+                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Active Workflow Policy:</span>
+                  </div>
+                  <p>
+                    {settings.requirePaymentBeforeApply !== false 
+                      ? `Customers must complete ₹${settings.applicationFee || 50} payment. Verified transaction ID will be permanently tied to their application record and invoice.`
+                      : 'Payment gate is deactivated. Customers can submit applications directly.'}
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* RAZORPAY API CREDENTIALS CARD */}
           <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-[#104A96]" />
-                  <h3 className="text-base font-extrabold text-slate-900">Razorpay Payment Gateway</h3>
+                  <h3 className="text-base font-extrabold text-slate-900">Razorpay API Gateway Credentials</h3>
                   <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
                     Configured & Active
                   </span>
@@ -614,7 +800,7 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
                   type="button"
                   onClick={handleTestRazorpay}
                   disabled={isTestingRazorpay}
-                  className="px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   <CreditCard className="w-3.5 h-3.5" />
                   <span>{isTestingRazorpay ? 'Opening Gateway...' : 'Test Razorpay Modal (₹10)'}</span>

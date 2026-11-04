@@ -118,6 +118,11 @@ export interface CustomerApplication {
   serviceTitle: string;
   serviceType?: string;
   status: ApplicationStatus;
+  paymentStatus?: 'payment_completed' | 'payment_pending' | 'free_tier' | string;
+  paymentAmount?: number;
+  paymentTransactionId?: string;
+  paymentDate?: string;
+  paymentMethod?: string;
   submissionDate: string;
   createdAt?: string;
   expectedCompletionDate?: string;
