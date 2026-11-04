@@ -6,12 +6,14 @@ import { ServiceDetail } from '../types/services';
 import { WebsiteSettings } from '../types/admin';
 import { getServiceAppConfig, ServiceAppConfig } from '../data/serviceApplicationConfigs';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { saveApplication } from '../services/dbService';
 import { openRazorpayCheckout } from '../services/razorpayService';
 import { CustomerApplication, ApplicationDocument } from '../types/application';
 import { DocumentPreviewModal } from '../components/DocumentPreviewModal';
+import { downloadDocumentFile } from '../utils/fileDownloadHelper';
 import { Breadcrumbs } from '../components/Breadcrumbs';
-import { generateInvoicePDF, formatINR } from '../utils/pdfGenerator';
+import { generateInvoicePDF, generateApplicationSummaryPDF, formatINR } from '../utils/pdfGenerator';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle2, 
@@ -46,7 +48,11 @@ import {
   Download,
   Receipt,
   BadgeCheck,
-  Zap
+  Zap,
+  Edit3,
+  Calendar,
+  User,
+  Clock
 } from 'lucide-react';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -60,22 +66,25 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Globe
 };
 
+type ApplicationStep = 'form' | 'documents' | 'review' | 'payment' | 'success';
+
 export const ServiceDetailPage: React.FC = () => {
   const { slug: paramSlug, serviceSlug } = useParams<{ slug?: string; serviceSlug?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { t } = useLanguage();
 
-  // Robust slug extraction: checks route params OR extracts last segment from pathname
+  // Robust slug extraction
   const pathParts = location.pathname.split('/').filter(Boolean);
   const pathSlug = pathParts.length > 0 ? pathParts[pathParts.length - 1] : undefined;
   const activeSlug = (paramSlug || serviceSlug || pathSlug || 'aadhaar').toLowerCase().trim();
 
-  // Dynamic service state with synchronous instant cache initialization
+  // Dynamic service state
   const [service, setService] = useState<ServiceDetail>(() => getInitialServiceBySlug(activeSlug));
   const config: ServiceAppConfig = getServiceAppConfig(activeSlug);
 
-  // Sync service from Supabase / dataSyncService and listen for Admin updates
+  // Sync service from Supabase / dataSyncService
   useEffect(() => {
     let isMounted = true;
     getServiceBySlug(activeSlug).then((data) => {
@@ -101,91 +110,51 @@ export const ServiceDetailPage: React.FC = () => {
     };
   }, [activeSlug]);
 
-  // Sub-service selected option state (e.g. 'address-update', 'new-pan', etc.)
+  // Selected sub-service
   const [selectedSubService, setSelectedSubService] = useState<string>('');
 
-  // Form Data dynamic state initialized from config fields
+  // Multi-step Application-First State
+  const [currentStep, setCurrentStep] = useState<ApplicationStep>('form');
   const [formData, setFormData] = useState<Record<string, any>>({});
-  
-  // Dynamic Documents initialized from config
   const [documents, setDocuments] = useState<ApplicationDocument[]>([]);
-  
-  // Interactive checklist readiness state
   const [checkedDocs, setCheckedDocs] = useState<Record<string, boolean>>({});
   
-  // Modal & submission state
-  const [previewDoc, setPreviewDoc] = useState<ApplicationDocument | null>(null);
-  const [submittedApp, setSubmittedApp] = useState<CustomerApplication | null>(null);
+  // App in Progress / Submitted
+  const [pendingApp, setPendingApp] = useState<CustomerApplication | null>(null);
   const [copiedId, setCopiedId] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [showInfoAccordion, setShowInfoAccordion] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  // Settings & Mandatory Payment Gate State
-  const sessionPaymentKey = `apply365_verified_payment_${activeSlug}`;
+  // Document Preview Modal State
+  const [previewDocIndex, setPreviewDocIndex] = useState<number>(-1);
+
+  // Settings
   const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettings | null>(null);
-  const [isPaymentVerified, setIsPaymentVerified] = useState<boolean>(false);
-  const [paymentTxnId, setPaymentTxnId] = useState<string>('');
-  const [paymentAmount, setPaymentAmount] = useState<number>(50);
-  const [paymentVerifiedDate, setPaymentVerifiedDate] = useState<string>('');
-  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
-  const [showPreDocPreview, setShowPreDocPreview] = useState<boolean>(true);
+  const feeAmount = websiteSettings?.applicationFee ?? 50;
 
-  // Load website settings & verify session payment status
   useEffect(() => {
-    let isMounted = true;
     getWebsiteSettings().then(st => {
-      if (isMounted && st) {
-        setWebsiteSettings(st);
-        const fee = st.applicationFee !== undefined ? Number(st.applicationFee) : 50;
-        setPaymentAmount(fee);
-        // If mandatory payment is disabled or fee is 0, unlock immediately
-        if (st.requirePaymentBeforeApply === false || fee <= 0) {
-          setIsPaymentVerified(true);
-        }
-      }
+      if (st) setWebsiteSettings(st);
     });
+  }, []);
 
-    // Check if customer already paid for this service in current browser session
-    try {
-      const stored = sessionStorage.getItem(sessionPaymentKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && parsed.txnId) {
-          setIsPaymentVerified(true);
-          setPaymentTxnId(parsed.txnId);
-          if (parsed.amount) setPaymentAmount(parsed.amount);
-          if (parsed.date) setPaymentVerifiedDate(parsed.date);
-        }
-      }
-    } catch (e) {
-      console.warn('Session payment check error', e);
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [activeSlug, sessionPaymentKey]);
-
-  // Initialize or re-initialize when slug or service data changes
+  // Initialize or re-initialize form & documents when slug changes
   useEffect(() => {
     if (!service) return;
 
-    // Default first sub-service option if available
     const firstOption = (service.subServices && service.subServices.length > 0)
       ? service.subServices[0].value
       : config.fields.find(f => f.options && f.options.length > 0)?.options?.[0]?.value || '';
     setSelectedSubService(firstOption);
 
-    // Initial form data
     const initial: Record<string, any> = {
       fullName: currentUser?.name || '',
       mobile: currentUser?.mobile || '',
       email: currentUser?.email || '',
       city: currentUser?.city || '',
-      specificRequest: `Please assist in filing and processing my ${config.title} with verified documentation.`,
+      specificRequest: `Assistance in filing and verification for ${service.title}.`,
       urgency: 'Standard (Within normal timeline)',
       customerRemarks: '',
     };
@@ -199,7 +168,7 @@ export const ServiceDetailPage: React.FC = () => {
     });
     setFormData(initial);
 
-    // Initial documents dynamically loaded from Supabase service.documents or static config fallback
+    // Documents
     const dynamicDocsSource = (service.documents && service.documents.length > 0)
       ? service.documents.map((d, idx) => ({
           id: d.id || `doc-${activeSlug}-${idx}`,
@@ -231,123 +200,131 @@ export const ServiceDetailPage: React.FC = () => {
       });
     }
     setCheckedDocs(initialChecklist);
-
-    setSubmittedApp(null);
+    setCurrentStep('form');
+    setPendingApp(null);
     setErrorMsg('');
   }, [activeSlug, currentUser, service, config]);
 
   const activeService = service || getInitialServiceBySlug(activeSlug);
   const IconComponent = iconMap[activeService.iconName] || Fingerprint;
 
+  // Validation
   const validateField = (fieldName: string, rawVal: any): string => {
     const val = rawVal ? String(rawVal).trim() : '';
     const lower = fieldName.toLowerCase();
 
-    // 1. Aadhaar Number (strictly 12 digits, numbers only)
+    // 1. Aadhaar Number (12 digits)
     if (lower.includes('aadhaar')) {
       if (!val) return '';
       const digits = val.replace(/\D/g, '');
       if (digits.length !== 12) {
-        return 'Aadhaar number must be exactly 12 digits';
+        return 'Aadhaar number must be exactly 12 digits.';
       }
     }
 
-    // 2. PIN Code (strictly 6 digits, numbers only)
-    if (lower.includes('pincode') || lower.includes('pin') || lower.includes('postal')) {
+    // 2. PIN Code (6 digits)
+    if (lower.includes('pin') || lower.includes('pincode') || lower.includes('postal')) {
       if (!val) return '';
       const digits = val.replace(/\D/g, '');
       if (digits.length !== 6) {
-        return 'PIN Code must be exactly 6 digits';
+        return 'PIN code must be exactly 6 digits.';
       }
     }
 
-    // 3. Mobile Number (strictly 10 digits starting with 6, 7, 8, 9)
+    // 3. Mobile Number (10 digits)
     if (lower.includes('mobile') || lower.includes('phone')) {
       if (!val) return '';
       const digits = val.replace(/\D/g, '');
       if (digits.length !== 10) {
-        return 'Mobile number must be exactly 10 digits';
-      }
-      if (!/^[6-9]\d{9}$/.test(digits)) {
-        return 'Mobile number must start with 6, 7, 8, or 9';
+        return 'Mobile number must be exactly 10 digits.';
       }
     }
 
-    // 4. Date of Birth (cannot be in the future)
-    if (lower === 'dob' || lower.includes('birth')) {
-      if (!val) return '';
-      const selectedDate = new Date(val);
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
-      if (isNaN(selectedDate.getTime())) {
-        return 'Please select a valid date';
-      }
-      if (selectedDate > today) {
-        return 'Date of birth cannot be in the future';
-      }
-    }
-
-    // 5. PAN Number (10 alphanumeric characters)
-    if (lower.includes('pan') && !lower.includes('company') && !lower.includes('expand')) {
-      if (!val) return '';
-      const panClean = val.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-      if (panClean.length !== 10 || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(panClean)) {
-        return 'PAN must be 10 characters (e.g. ABCDE1234F)';
-      }
-    }
-
-    // 6. Email validation
+    // 4. Email
     if (lower.includes('email')) {
       if (!val) return '';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-        return 'Please enter a valid email address';
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(val)) {
+        return 'Enter a valid email address.';
+      }
+    }
+
+    // 5. PAN Number (10 alphanumeric chars: ABCDE1234F)
+    if (lower.includes('pan') && !lower.includes('company') && !lower.includes('span')) {
+      if (!val) return '';
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i;
+      if (!panRegex.test(val)) {
+        return 'PAN format must be 5 letters, 4 numbers, 1 letter (e.g. ABCDE1234F).';
       }
     }
 
     return '';
   };
 
-  const handleInputChange = (field: string, rawValue: any) => {
-    let value = rawValue;
-    const lower = field.toLowerCase();
+  const handleInputChange = (name: string, value: any) => {
+    let cleanVal = value;
+    const lower = name.toLowerCase();
 
-    // Prevent non-digits and extra characters from being entered
+    // Enforce digit-only constraints on Aadhaar, PIN, Mobile
     if (lower.includes('aadhaar')) {
-      value = String(rawValue).replace(/\D/g, '').slice(0, 12);
-    } else if (lower.includes('pincode') || lower.includes('pin') || lower.includes('postal')) {
-      value = String(rawValue).replace(/\D/g, '').slice(0, 6);
+      cleanVal = String(value).replace(/\D/g, '').slice(0, 12);
+    } else if (lower.includes('pin') || lower.includes('pincode')) {
+      cleanVal = String(value).replace(/\D/g, '').slice(0, 6);
     } else if (lower.includes('mobile') || lower.includes('phone')) {
-      value = String(rawValue).replace(/\D/g, '').slice(0, 10);
-    } else if (lower.includes('pan') && !lower.includes('company') && !lower.includes('expand')) {
-      value = String(rawValue).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+      cleanVal = String(value).replace(/\D/g, '').slice(0, 10);
     }
 
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errorMsg) setErrorMsg('');
+    setFormData((prev) => ({ ...prev, [name]: cleanVal }));
 
-    // Real-time error evaluation
-    const fieldErr = validateField(field, value);
-    setFieldErrors((prev) => ({
-      ...prev,
-      [field]: fieldErr,
-    }));
+    // Instant live validation
+    const err = validateField(name, cleanVal);
+    setFieldErrors((prev) => {
+      const copy = { ...prev };
+      if (err) {
+        copy[name] = err;
+      } else {
+        delete copy[name];
+      }
+      return copy;
+    });
   };
 
-  const toggleChecklistDoc = (docName: string) => {
-    setCheckedDocs((prev) => ({
-      ...prev,
-      [docName]: !prev[docName],
-    }));
+  // Step 2 -> Step 3: Validate form fields
+  const handleProceedToDocuments = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    const errors: Record<string, string> = {};
+    for (const f of config.fields) {
+      const val = formData[f.name];
+      if (f.required && (!val || String(val).trim() === '')) {
+        errors[f.name] = `${f.label} is required.`;
+      } else if (val) {
+        const customErr = validateField(f.name, val);
+        if (customErr) errors[f.name] = customErr;
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setErrorMsg('Please correct the highlighted fields in red before proceeding.');
+      window.scrollTo({ top: 350, behavior: 'smooth' });
+      return;
+    }
+
+    setCurrentStep('documents');
+    window.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
-  const toggleDocReady = (docId: string) => {
-    setDocuments((prev) =>
-      prev.map((d) => (d.id === docId ? { ...d, isReady: !d.isReady } : d))
-    );
-  };
-
+  // Step 3: File Upload Handler
   const handleFileUpload = (docId: string, file: File) => {
     if (!file) return;
+
+    // File size check: max 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size exceeds 10MB limit. Please upload a smaller file.');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -375,7 +352,7 @@ export const ServiceDetailPage: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveDoc = (docId: string) => {
+  const handleRemoveFile = (docId: string) => {
     setDocuments((prev) =>
       prev.map((doc) => {
         if (doc.id === docId) {
@@ -394,105 +371,31 @@ export const ServiceDetailPage: React.FC = () => {
     );
   };
 
-  const handleInitiatePayment = async () => {
+  // Step 3 -> Step 4: Proceed to Review
+  const handleProceedToReview = () => {
     setErrorMsg('');
-    setIsProcessingPayment(true);
-
-    try {
-      const payerName = formData.fullName || currentUser?.name || 'Customer';
-      const payerEmail = formData.email || currentUser?.email || 'applyallservices365@gmail.com';
-      const payerPhone = formData.mobile || currentUser?.mobile || '9121992365';
-      const customKeyId = websiteSettings?.paymentGateway?.keyId;
-
-      const response = await openRazorpayCheckout({
-        amount: paymentAmount,
-        currency: 'INR',
-        name: websiteSettings?.siteName || 'Apply365 — Services for People',
-        description: `Application Fee: ${service.title}`,
-        customerName: payerName,
-        customerEmail: payerEmail,
-        customerPhone: payerPhone,
-        themeColor: websiteSettings?.paymentGateway?.themeColor || '#104A96',
-        notes: {
-          service_slug: activeSlug,
-          service_title: service.title,
-          customer_name: payerName,
-          customer_phone: payerPhone,
-          purpose: 'Mandatory Application Processing Fee'
-        }
-      }, customKeyId);
-
-      if (response && response.razorpay_payment_id) {
-        const txnId = response.razorpay_payment_id;
-        const nowIso = new Date().toISOString();
-        const payData = {
-          txnId,
-          amount: paymentAmount,
-          date: nowIso
-        };
-        sessionStorage.setItem(sessionPaymentKey, JSON.stringify(payData));
-        setIsPaymentVerified(true);
-        setPaymentTxnId(txnId);
-        setPaymentVerifiedDate(nowIso);
-
-        try {
-          confetti({
-            particleCount: 80,
-            spread: 70,
-            origin: { y: 0.5 }
-          });
-        } catch {}
-
-        window.scrollTo({ top: 380, behavior: 'smooth' });
-      }
-    } catch (err: any) {
-      console.warn('Payment failed or cancelled:', err);
-      setErrorMsg(err?.message || 'Payment was not completed. Please complete payment to unlock the application form.');
-    } finally {
-      setIsProcessingPayment(false);
+    // Check if mandatory documents are uploaded
+    const missingMandatory = documents.filter((d) => d.isMandatory && (!d.fileUrl || d.status !== 'uploaded'));
+    if (missingMandatory.length > 0) {
+      setErrorMsg(`Please upload all mandatory documents (${missingMandatory.map(d => d.name).join(', ')}) before proceeding to review.`);
+      window.scrollTo({ top: 350, behavior: 'smooth' });
+      return;
     }
+
+    setCurrentStep('review');
+    window.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
-  const handleSubmitApplication = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Step 4 -> Step 5: Save Application & Advance to Payment Step
+  const handleSaveAndProceedToPayment = async () => {
+    setIsSubmitting(true);
     setErrorMsg('');
 
-    // Check mandatory payment gate
-    const requiresPayment = websiteSettings?.requirePaymentBeforeApply !== false && paymentAmount > 0;
-    if (requiresPayment && !isPaymentVerified) {
-      setErrorMsg(`Payment of ₹${paymentAmount} is mandatory before submitting your application. Please complete payment above.`);
-      window.scrollTo({ top: 280, behavior: 'smooth' });
-      return;
-    }
-
-    // Comprehensive Field Validation
-    const errors: Record<string, string> = {};
-    for (const f of config.fields) {
-      const val = formData[f.name];
-      if (f.required && (!val || String(val).trim() === '')) {
-        errors[f.name] = `${f.label} is required.`;
-      } else if (val) {
-        const customErr = validateField(f.name, val);
-        if (customErr) {
-          errors[f.name] = customErr;
-        }
-      }
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      const firstMsg = Object.values(errors)[0];
-      setErrorMsg(firstMsg || 'Please correct the highlighted fields in red before submitting.');
-      window.scrollTo({ top: 380, behavior: 'smooth' });
-      return;
-    }
-
-    setIsSubmitting(true);
     try {
       const uniqueId = `APP365-${config.prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
       const now = new Date();
       const customerId = currentUser?.id || `guest_${Date.now()}`;
-      
+
       const appRecord: CustomerApplication = {
         id: uniqueId,
         customerId,
@@ -504,11 +407,8 @@ export const ServiceDetailPage: React.FC = () => {
         serviceTitle: config.title,
         serviceType: selectedSubService || 'Standard',
         status: 'Submitted',
-        paymentStatus: isPaymentVerified ? 'payment_completed' : 'free_tier',
-        paymentAmount: isPaymentVerified ? paymentAmount : 0,
-        paymentTransactionId: paymentTxnId || `pay_verified_${Date.now()}`,
-        paymentDate: isPaymentVerified ? (paymentVerifiedDate || now.toISOString()) : undefined,
-        paymentMethod: 'Razorpay',
+        paymentStatus: 'payment_pending',
+        paymentAmount: feeAmount,
         submissionDate: now.toISOString(),
         createdAt: now.toISOString(),
         formData: formData as any,
@@ -516,98 +416,168 @@ export const ServiceDetailPage: React.FC = () => {
         updatedAt: now.toISOString(),
       };
 
+      // 1. Save in local database and Supabase with payment_pending status
       await saveApplication(appRecord);
       await saveNewApplication(appRecord);
-      try {
-        sessionStorage.removeItem(sessionPaymentKey);
-      } catch {}
-      setSubmittedApp(appRecord);
-      
-      // Fire celebration confetti
-      try {
-        confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.6 }
-        });
-      } catch {}
 
-      window.scrollTo({ top: 100, behavior: 'smooth' });
-    } catch {
-      setErrorMsg('Application submission error. Please try again.');
+      setPendingApp(appRecord);
+      setCurrentStep('payment');
+      window.scrollTo({ top: 250, behavior: 'smooth' });
+    } catch (err: any) {
+      console.error('Save application error:', err);
+      setErrorMsg('Error saving application. Please verify details and try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Step 6: Final Razorpay Payment Execution
+  const handleCompletePayment = async () => {
+    if (!pendingApp) return;
+    setErrorMsg('');
+    setIsProcessingPayment(true);
+
+    try {
+      const payerName = pendingApp.customerName;
+      const payerEmail = pendingApp.customerEmail;
+      const payerPhone = pendingApp.customerMobile;
+      const customKeyId = websiteSettings?.paymentGateway?.keyId;
+
+      const response = await openRazorpayCheckout({
+        amount: feeAmount,
+        currency: 'INR',
+        name: websiteSettings?.siteName || 'Apply365 — Services for People',
+        description: `Apply-365 Service Processing Fee: ${pendingApp.serviceTitle}`,
+        invoiceId: pendingApp.id,
+        customerName: payerName,
+        customerEmail: payerEmail,
+        customerPhone: payerPhone,
+        themeColor: websiteSettings?.paymentGateway?.themeColor || '#104A96',
+        notes: {
+          application_id: pendingApp.id,
+          service_title: pendingApp.serviceTitle,
+          customer_name: payerName,
+          fee_type: 'Apply-365 Service Processing Fee'
+        }
+      }, customKeyId);
+
+      if (response && response.razorpay_payment_id) {
+        const txnId = response.razorpay_payment_id;
+        const nowIso = new Date().toISOString();
+
+        // Update application to fully verified and submitted state
+        const updatedApp: CustomerApplication = {
+          ...pendingApp,
+          status: 'Completed',
+          paymentStatus: 'payment_completed',
+          paymentTransactionId: txnId,
+          paymentDate: nowIso,
+          paymentMethod: 'Razorpay',
+          updatedAt: nowIso
+        };
+
+        await saveApplication(updatedApp);
+        await saveNewApplication(updatedApp);
+        setPendingApp(updatedApp);
+        setCurrentStep('success');
+
+        try {
+          confetti({
+            particleCount: 90,
+            spread: 70,
+            origin: { y: 0.5 }
+          });
+        } catch {}
+
+        window.scrollTo({ top: 150, behavior: 'smooth' });
+      }
+    } catch (err: any) {
+      console.warn('Payment failed or cancelled:', err);
+      setErrorMsg(err?.message || 'Payment was not completed. Your application details remain safely saved; you can complete payment anytime.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  // PDF Download Handlers
   const handleDownloadReceipt = () => {
-    if (!submittedApp) return;
+    if (!pendingApp) return;
     try {
       const invPdf = generateInvoicePDF({
-        id: `inv_${submittedApp.id}`,
-        invoiceNumber: `INV-${submittedApp.id.replace('APP365-', '')}`,
-        applicationId: submittedApp.id,
-        customerId: submittedApp.customerId,
-        customerName: submittedApp.customerName,
-        customerEmail: submittedApp.customerEmail,
-        customerMobile: submittedApp.customerMobile,
-        serviceName: submittedApp.serviceTitle,
+        id: `inv_${pendingApp.id}`,
+        invoiceNumber: `INV-${pendingApp.id.replace('APP365-', '')}`,
+        applicationId: pendingApp.id,
+        customerId: pendingApp.customerId,
+        customerName: pendingApp.customerName,
+        customerEmail: pendingApp.customerEmail,
+        customerMobile: pendingApp.customerMobile,
+        serviceName: pendingApp.serviceTitle,
         invoiceDate: new Date().toISOString().slice(0, 10),
         dueDate: new Date().toISOString().slice(0, 10),
         items: [
           {
             id: 'item-1',
-            description: `${submittedApp.serviceTitle} — Statutory Application Facilitation Fee`,
+            description: `${pendingApp.serviceTitle} — Apply-365 Service Processing Fee`,
             quantity: 1,
-            unitPrice: submittedApp.paymentAmount || paymentAmount || 50,
-            total: submittedApp.paymentAmount || paymentAmount || 50
+            unitPrice: feeAmount,
+            total: feeAmount
           }
         ],
-        subtotal: submittedApp.paymentAmount || paymentAmount || 50,
+        subtotal: feeAmount,
         taxAmount: 0,
         discount: 0,
         taxRate: 0,
-        totalAmount: submittedApp.paymentAmount || paymentAmount || 50,
-        amountPaid: submittedApp.paymentAmount || paymentAmount || 50,
+        totalAmount: feeAmount,
+        amountPaid: feeAmount,
         balanceDue: 0,
         paymentStatus: 'paid',
         invoiceStatus: 'finalized',
         payments: [
           {
-            id: `pay_${submittedApp.id}`,
-            amount: submittedApp.paymentAmount || paymentAmount || 50,
+            id: `pay_${pendingApp.id}`,
+            amount: feeAmount,
             paymentDate: new Date().toISOString().slice(0, 10),
-            paymentMethod: 'razorpay',
-            referenceNumber: submittedApp.paymentTransactionId || paymentTxnId || 'Verified',
+            paymentMethod: 'Razorpay',
+            referenceNumber: pendingApp.paymentTransactionId || 'Razorpay Verified',
             recordedBy: 'Razorpay Payment Gateway',
-            notes: 'Application fee paid online via Razorpay'
+            notes: 'Apply-365 Service Processing Fee paid online'
           }
         ],
-        notes: `Official payment receipt for application ${submittedApp.id}. All fees inclusive.`
+        notes: `Official payment receipt for application ${pendingApp.id}. Apply-365 service facilitation charge.`
       });
-      invPdf.save(`Apply365_${submittedApp.id}_Receipt.pdf`);
+      invPdf.save(`Apply365_${pendingApp.id}_Receipt.pdf`);
     } catch (err) {
-      console.warn('PDF download error:', err);
+      console.error('PDF download error:', err);
+    }
+  };
+
+  const handleDownloadSoftCopy = () => {
+    if (!pendingApp) return;
+    try {
+      const appPdf = generateApplicationSummaryPDF(pendingApp);
+      appPdf.save(`Apply365_${pendingApp.id}_Application_Dossier.pdf`);
+    } catch (err) {
+      console.error('Application PDF download error:', err);
     }
   };
 
   const copyAppId = () => {
-    if (!submittedApp) return;
-    navigator.clipboard.writeText(submittedApp.id);
+    if (!pendingApp) return;
+    navigator.clipboard.writeText(pendingApp.id);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
   };
 
   return (
-    <div className="bg-[#FAFBFD] min-h-screen pb-20">
+    <div className="bg-[#FAFBFD] min-h-screen pb-24">
       
-      {/* Top Breadcrumb & Hero Banner */}
-      <div className="bg-white border-b border-slate-200/80 py-6 sm:py-10">
+      {/* Top Header & Breadcrumb */}
+      <div className="bg-white border-b border-slate-200/80 py-6 sm:py-9">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
           
           <Breadcrumbs 
             items={[
-              { label: 'Services', path: '/services' },
+              { label: t('nav.services', 'Services'), path: '/services' },
               { label: service.title }
             ]} 
           />
@@ -632,7 +602,7 @@ export const ServiceDetailPage: React.FC = () => {
                     {service.badge}
                   </span>
                   <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                    Dedicated Service Portal
+                    {t('services.dedicatedPortal', 'Dedicated Service Portal')}
                   </span>
                 </div>
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight mt-1">
@@ -649,877 +619,236 @@ export const ServiceDetailPage: React.FC = () => {
               className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-[#104A96] px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 transition-colors self-start sm:self-center shrink-0"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Services</span>
+              <span>{t('app.back', 'Back to Services')}</span>
             </Link>
           </div>
+
+          {/* Stepper Progress Bar */}
+          {currentStep !== 'success' && (
+            <div className="pt-4 border-t border-slate-100">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs font-bold">
+                {[
+                  { step: 'form', label: `1. ${t('app.step2', 'Details')}` },
+                  { step: 'documents', label: `2. ${t('app.step3', 'Documents')}` },
+                  { step: 'review', label: `3. ${t('app.step4', 'Review')}` },
+                  { step: 'payment', label: `4. ${t('app.step5', 'Payment')}` }
+                ].map((s, idx) => {
+                  const isCurrent = currentStep === s.step;
+                  const isDone = 
+                    (s.step === 'form' && currentStep !== 'form') ||
+                    (s.step === 'documents' && (currentStep === 'review' || currentStep === 'payment')) ||
+                    (s.step === 'review' && currentStep === 'payment');
+
+                  return (
+                    <div 
+                      key={s.step} 
+                      className={`p-2 rounded-xl transition-all ${
+                        isCurrent 
+                          ? 'bg-[#104A96] text-white shadow-xs' 
+                          : isDone 
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                            : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      <span className="truncate block">{s.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
         </div>
       </div>
 
+      {/* Main Form Content Container */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
-
-        {/* Global Error Notification */}
+        
+        {/* Global Error Banner */}
         {errorMsg && (
-          <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm flex items-start gap-3 shadow-xs">
+          <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm flex items-start gap-3 shadow-xs animate-in fade-in">
             <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* SUCCESS CONFIRMATION VIEW */}
-        {submittedApp ? (
-          <div className="bg-white rounded-3xl p-6 sm:p-12 shadow-xl border border-slate-100 text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
+        {/* ========================================================================= */}
+        {/* STEP 1 & 2: APPLICANT INFORMATION & DETAILS FORM                          */}
+        {/* ========================================================================= */}
+        {currentStep === 'form' && (
+          <form onSubmit={handleProceedToDocuments} className="space-y-8 animate-in fade-in duration-200">
             
-            <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Application Submitted Successfully</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                Your Application ID is Generated!
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
-                Our documentation team has received your application and documents for <strong>{submittedApp.serviceTitle}</strong>.
-              </p>
-            </div>
-
-            {/* Unique Application ID Box */}
-            <div className="max-w-md mx-auto p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 flex items-center justify-between">
-              <div className="text-left">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                  Application Tracking Number
-                </span>
-                <span className="text-lg sm:text-xl font-mono font-black text-[#104A96]">
-                  {submittedApp.id}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={copyAppId}
-                className="px-3.5 py-2 rounded-xl bg-white border border-blue-200 text-[#104A96] text-xs font-bold hover:bg-blue-50 transition-colors flex items-center gap-1.5 shadow-xs"
-              >
-                {copiedId ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Application Overview Grid */}
-            <div className="max-w-md mx-auto grid grid-cols-2 gap-3 text-left">
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Service</span>
-                <span className="text-xs font-bold text-slate-800 truncate block">{submittedApp.serviceTitle}</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Application Status</span>
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                  Application Received
-                </span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Status</span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                  Fee Paid: ₹{submittedApp.paymentAmount || paymentAmount || 50}
-                </span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Razorpay Txn ID</span>
-                <span className="text-[11px] font-mono font-bold text-slate-700 truncate block">
-                  {submittedApp.paymentTransactionId || paymentTxnId || 'Verified'}
-                </span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-2 max-w-md mx-auto space-y-3">
-              <button
-                type="button"
-                onClick={handleDownloadReceipt}
-                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Payment Receipt (PDF)</span>
-              </button>
-
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSubmittedApp(null);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer"
-                >
-                  Apply for Another Service
-                </button>
-
-                <Link
-                  to="/dashboard"
-                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors text-center"
-                >
-                  Go to Customer Dashboard
-                </Link>
-              </div>
-            </div>
-
-          </div>
-        ) : (websiteSettings?.requirePaymentBeforeApply !== false && paymentAmount > 0 && !isPaymentVerified) ? (
-          /* ========================================================================= */
-          /* MANDATORY PAYMENT GATEWAY SCREEN (Step 1 of Application)                  */
-          /* ========================================================================= */
-          <div className="space-y-8 animate-in fade-in duration-300">
-            
-            {/* Payment Gate Card */}
-            <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/80 space-y-8">
-              
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#104A96] text-xs font-bold tracking-wide uppercase mb-2">
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>Step 1: Mandatory Application Fee</span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                    Statutory Facilitation Fee for {service.title}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
-                    As per Apply365 regulatory facilitation policy, a mandatory fee of <strong>₹{paymentAmount}</strong> is required to unlock your official application form and document checklist.
-                  </p>
+            {/* Sub-Service Option Selector */}
+            {service.subServices && service.subServices.length > 0 && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <BadgeCheck className="w-5 h-5 text-[#104A96]" />
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    {t('app.serviceType', 'Select Specific Service Type')}
+                  </h3>
                 </div>
-
-                <div className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 self-start sm:self-auto">
-                  <Lock className="w-4 h-4 text-amber-600" />
-                  <span className="text-xs font-bold text-amber-800">Form Locked Until Payment</span>
-                </div>
-              </div>
-
-              {/* Fee Breakdown & Razorpay Checkout Box */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* Left Side: Summary & Benefits */}
-                <div className="lg:col-span-7 space-y-6">
-                  
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Payment Summary
-                    </h3>
-
-                    <div className="space-y-3 divide-y divide-slate-200/60 text-xs sm:text-sm">
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="font-semibold text-slate-700">Selected Service</span>
-                        <span className="font-bold text-slate-900">{service.title}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <span className="text-slate-600">Statutory Facilitation Fee</span>
-                        <span className="font-bold text-slate-900">₹{paymentAmount}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <span className="text-slate-600">Document Verification & KYC Check</span>
-                        <span className="font-bold text-emerald-600">Included (₹0)</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <span className="text-slate-600">SMS & WhatsApp Status Alerts</span>
-                        <span className="font-bold text-emerald-600">Included (₹0)</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <span className="text-slate-600">Payment Gateway Platform Charges</span>
-                        <span className="font-bold text-emerald-600">Waived (₹0)</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-4 text-sm sm:text-base">
-                        <span className="font-extrabold text-slate-900">Total Amount Payable</span>
-                        <span className="font-black text-2xl text-[#104A96]">₹{paymentAmount}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Trust & Guarantee Indicators */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-left">
-                    <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 flex items-center gap-2.5">
-                      <ShieldCheck className="w-5 h-5 text-[#104A96] shrink-0" />
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-800 block">256-Bit SSL</span>
-                        <span className="text-[10px] text-slate-500 block">Bank Grade Security</span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center gap-2.5">
-                      <Zap className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-800 block">Instant Unlock</span>
-                        <span className="text-[10px] text-slate-500 block">Immediate Access</span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-purple-50/50 border border-purple-100 flex items-center gap-2.5 col-span-2 sm:col-span-1">
-                      <Receipt className="w-5 h-5 text-purple-600 shrink-0" />
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-800 block">Tax Receipt</span>
-                        <span className="text-[10px] text-slate-500 block">Instant PDF Invoice</span>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Right Side: Payer Confirmation & Pay Button */}
-                <div className="lg:col-span-5 bg-gradient-to-b from-slate-50 to-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-5">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-[#104A96] block">
-                      Applicant Contact Information
-                    </span>
-                    <p className="text-xs text-slate-500">
-                      Payment receipt and application tracking details will be sent to:
-                    </p>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.fullName || ''}
-                        onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                        placeholder="Enter your official full name"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        Mobile Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.mobile || ''}
-                        onChange={(e) => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                        placeholder="10-digit mobile number"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        Email Address <span className="text-slate-400 font-normal">(for receipt)</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.email || ''}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="yourname@gmail.com"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Primary Pay Now Button */}
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={handleInitiatePayment}
-                      disabled={isProcessingPayment}
-                      className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-[#104A96] to-[#0A2F63] hover:from-[#0c3c7d] hover:to-[#07244c] text-white font-extrabold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all transform active:scale-[0.99] flex items-center justify-center gap-3 disabled:opacity-60 cursor-pointer"
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {service.subServices.map((sub) => (
+                    <div
+                      key={sub.value}
+                      onClick={() => setSelectedSubService(sub.value)}
+                      className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                        selectedSubService === sub.value
+                          ? 'border-[#104A96] bg-blue-50/60 shadow-xs ring-2 ring-[#104A96]/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
                     >
-                      {isProcessingPayment ? (
-                        <>
-                          <RefreshCw className="w-5 h-5 animate-spin" />
-                          <span>Connecting to Razorpay...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="w-5 h-5 text-amber-300" />
-                          <span>Pay ₹{paymentAmount} & Unlock Application</span>
-                        </>
-                      )}
-                    </button>
-                    
-                    <div className="flex items-center justify-center gap-2 mt-3 text-[11px] text-slate-500 font-medium">
-                      <span>Powered by</span>
-                      <span className="font-bold text-slate-800">Razorpay</span>
-                      <span>• UPI / Cards / NetBanking / QR</span>
-                    </div>
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* PRE-PAYMENT DOCUMENT CHECKLIST PREVIEW */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-4">
-              <div 
-                onClick={() => setShowPreDocPreview(!showPreDocPreview)}
-                className="flex items-center justify-between cursor-pointer select-none"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#104A96] flex items-center justify-center">
-                    <FileCheck2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                      Documents You Will Need to Upload After Payment ({service.documents.length})
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Preview the document requirements before proceeding with your payment.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
-                  {showPreDocPreview ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                </div>
-              </div>
-
-              {showPreDocPreview && (
-                <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-200">
-                  {service.documents.map((doc, idx) => (
-                    <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-blue-100 text-[#104A96] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-slate-900">{doc.name}</span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            doc.isMandatory !== false 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-slate-200 text-slate-600'
-                          }`}>
-                            {doc.isMandatory !== false ? 'Mandatory' : 'Optional'}
-                          </span>
-                        </div>
-                        {doc.description && (
-                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
-                            {doc.description}
-                          </p>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs sm:text-sm text-slate-900">{sub.label}</span>
+                        {selectedSubService === sub.value && (
+                          <div className="w-5 h-5 rounded-full bg-[#104A96] text-white flex items-center justify-center">
+                            <Check className="w-3 h-3" />
+                          </div>
                         )}
                       </div>
+                      {sub.description && (
+                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{sub.description}</p>
+                      )}
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-
-          </div>
-        ) : (
-          <form onSubmit={handleSubmitApplication} className="space-y-8">
-            
-            {/* ========================================================================= */}
-            {/* VERIFIED PAYMENT REASSURANCE BANNER                                       */}
-            {/* ========================================================================= */}
-            {isPaymentVerified && (websiteSettings?.requirePaymentBeforeApply !== false) && (
-              <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
-                <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs sm:text-sm font-extrabold text-emerald-950">
-                        Payment Verified: ₹{paymentAmount}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200/80 text-emerald-900 uppercase tracking-wider">
-                        Form Unlocked
-                      </span>
-                    </div>
-                    <p className="text-xs text-emerald-800 mt-0.5">
-                      Razorpay Payment ID: <span className="font-mono font-bold">{paymentTxnId || 'Verified'}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="text-xs text-emerald-700 bg-white/80 border border-emerald-200 px-3.5 py-1.5 rounded-xl font-medium self-start sm:self-auto shrink-0 shadow-2xs">
-                  ✓ Ready for Document Upload & Submission
                 </div>
               </div>
             )}
-            
-            {/* ========================================================================= */}
-            {/* 1. REQUIRED DOCUMENTS CHECKLIST SECTION (Requirement 11)                 */}
-            {/* ========================================================================= */}
-            <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-200/80 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#104A96] text-xs font-bold tracking-wide uppercase mb-1">
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Required Documents Checklist</span>
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                    Documents Needed for {service.title}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Review and confirm your readiness before submitting. Check items you already have.
-                  </p>
-                </div>
 
-                <div className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 self-start sm:self-auto">
-                  {Object.values(checkedDocs).filter(Boolean).length} / {service.documents.length} Ready
-                </div>
-              </div>
-
-              {/* Checklist Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {service.documents.map((doc, idx) => {
-                  const isChecked = !!checkedDocs[doc.name];
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => toggleChecklistDoc(doc.name)}
-                      className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-start gap-3 ${
-                        isChecked 
-                          ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-300' 
-                          : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                        isChecked ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white'
-                      }`}>
-                        {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <h4 className="text-xs sm:text-sm font-bold text-slate-800 leading-tight truncate">
-                            {doc.name}
-                          </h4>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
-                            doc.isOptional ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-[#104A96]'
-                          }`}>
-                            {doc.isOptional ? 'Optional' : 'Mandatory'}
-                          </span>
-                        </div>
-                        {doc.description && (
-                          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                            {doc.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500 flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-[#FF8500] shrink-0" />
-                <span>
-                  {service.officialDisclaimer}
-                </span>
-              </div>
-            </div>
-
-            {/* ========================================================================= */}
-            {/* 2. SERVICE-SPECIFIC CUSTOMER DETAILS FORM (Requirement 10)               */}
-            {/* ========================================================================= */}
-            <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
-              
-              <div className="border-b border-slate-100 pb-4">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-[#FF8500] text-xs font-bold tracking-wide uppercase mb-1">
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Customer Details</span>
-                </div>
-                <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                  {service.title} Application Information
+            {/* Applicant Personal & Contact Information */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <User className="w-5 h-5 text-[#104A96]" />
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {t('app.step2', 'Applicant Information & Contact Details')}
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Please enter your verified details as recorded in government identification databases.
-                </p>
               </div>
 
-              {/* Dynamic Grid of Fields configured specifically for this service */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {config.fields.map((field) => {
-                  const isSpan2 = field.gridSpan === 2;
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Full Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    {t('app.fullName', 'Full Name')} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.fullName || ''}
+                    onChange={(e) => handleInputChange('fullName', e.target.value)}
+                    placeholder={t('app.fullNamePlaceholder', 'Enter official name')}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 bg-white ${
+                      fieldErrors.fullName ? 'border-red-400 focus:ring-red-400 bg-red-50/30' : 'border-slate-300 focus:ring-[#104A96]'
+                    }`}
+                  />
+                  {fieldErrors.fullName && <p className="text-[11px] text-red-600 font-semibold">{fieldErrors.fullName}</p>}
+                </div>
 
-                  if (field.type === 'select') {
-                    const isServiceSelect = 
-                      field.name.toLowerCase().includes('service') || 
-                      field.name === 'serviceType' || 
-                      field.name === 'passportServiceType';
+                {/* Mobile */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    {t('app.mobile', 'Mobile Number')} <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.mobile || ''}
+                    onChange={(e) => handleInputChange('mobile', e.target.value)}
+                    placeholder={t('app.mobilePlaceholder', '10-digit mobile number')}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 bg-white ${
+                      fieldErrors.mobile ? 'border-red-400 focus:ring-red-400 bg-red-50/30' : 'border-slate-300 focus:ring-[#104A96]'
+                    }`}
+                  />
+                  {fieldErrors.mobile && <p className="text-[11px] text-red-600 font-semibold">{fieldErrors.mobile}</p>}
+                </div>
 
-                    const optionsToRender = (isServiceSelect && service.subServices && service.subServices.length > 0)
-                      ? service.subServices.map(s => ({ value: s.value, label: s.label }))
-                      : field.options;
+                {/* Email */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    {t('app.email', 'Email Address')} <span className="text-slate-400 font-normal">(for receipt)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    placeholder={t('app.emailPlaceholder', 'yourname@gmail.com')}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 bg-white ${
+                      fieldErrors.email ? 'border-red-400 focus:ring-red-400 bg-red-50/30' : 'border-slate-300 focus:ring-[#104A96]'
+                    }`}
+                  />
+                  {fieldErrors.email && <p className="text-[11px] text-red-600 font-semibold">{fieldErrors.email}</p>}
+                </div>
 
-                    return (
-                      <div key={field.name} className={isSpan2 ? 'sm:col-span-2' : ''}>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                          {field.label} {field.required && <span className="text-red-500">*</span>}
-                        </label>
+                {/* City */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    {t('app.city', 'City / Town')}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.city || ''}
+                    onChange={(e) => handleInputChange('city', e.target.value)}
+                    placeholder="e.g. Hyderabad"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
+                  />
+                </div>
+
+                {/* Dynamic Config Fields (Service Specific) */}
+                {config.fields.map((f) => {
+                  if (['fullName', 'mobile', 'email', 'city'].includes(f.name)) return null;
+                  const hasErr = fieldErrors[f.name];
+
+                  return (
+                    <div key={f.name} className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        {f.label} {f.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {f.type === 'select' && f.options ? (
                         <select
-                          name={field.name}
-                          value={formData[field.name] || ''}
-                          onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          required={field.required}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white text-slate-800"
+                          value={formData[f.name] || ''}
+                          onChange={(e) => handleInputChange(f.name, e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white"
                         >
-                          {optionsToRender?.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
+                          {f.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
                         </select>
-                      </div>
-                    );
-                  }
-
-                  if (field.type === 'textarea') {
-                    return (
-                      <div key={field.name} className={isSpan2 ? 'sm:col-span-2' : ''}>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                          {field.label} {field.required && <span className="text-red-500">*</span>}
-                        </label>
-                        <textarea
-                          rows={3}
-                          name={field.name}
-                          value={formData[field.name] || ''}
-                          onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          required={field.required}
-                          placeholder={field.placeholder}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] text-slate-800"
-                        />
-                      </div>
-                    );
-                  }
-
-                  const lower = field.name.toLowerCase();
-                  const err = fieldErrors[field.name];
-                  const hasError = !!err;
-                  const isAadhaar = lower.includes('aadhaar');
-                  const isPincode = lower.includes('pincode') || lower.includes('pin') || lower.includes('postal');
-                  const isMobile = lower.includes('mobile') || lower.includes('phone');
-                  const isDate = field.type === 'date' || lower === 'dob' || lower.includes('birth');
-                  const isPan = lower.includes('pan') && !lower.includes('company') && !lower.includes('expand');
-
-                  const maxDate = isDate ? new Date().toISOString().split('T')[0] : undefined;
-                  const maxLength = isAadhaar ? 12 : isPincode ? 6 : isMobile ? 10 : isPan ? 10 : undefined;
-                  const inputMode = (isAadhaar || isPincode) ? 'numeric' : isMobile ? 'tel' : undefined;
-
-                  return (
-                    <div key={field.name} className={isSpan2 ? 'sm:col-span-2' : ''}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                          {field.label} {field.required && <span className="text-red-500">*</span>}
-                        </label>
-                        {isAadhaar && (
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                            formData[field.name]?.length === 12 
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                              : hasError 
-                                ? 'bg-red-100 text-red-800 border border-red-200' 
-                                : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {formData[field.name]?.length || 0} / 12 Digits
-                          </span>
-                        )}
-                        {isPincode && (
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                            formData[field.name]?.length === 6 
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                              : hasError 
-                                ? 'bg-red-100 text-red-800 border border-red-200' 
-                                : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {formData[field.name]?.length || 0} / 6 Digits
-                          </span>
-                        )}
-                        {isMobile && (
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                            formData[field.name]?.length === 10 
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                              : hasError 
-                                ? 'bg-red-100 text-red-800 border border-red-200' 
-                                : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {formData[field.name]?.length || 0} / 10 Digits
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="relative">
+                      ) : (
                         <input
-                          type={isDate ? 'date' : field.type}
-                          name={field.name}
-                          value={formData[field.name] || ''}
-                          onChange={(e) => handleInputChange(field.name, e.target.value)}
-                          required={field.required}
-                          max={maxDate}
-                          maxLength={maxLength}
-                          inputMode={inputMode}
-                          placeholder={field.placeholder}
-                          className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 ${
-                            hasError
-                              ? 'border-red-500 ring-2 ring-red-200 bg-red-50/20 text-red-900 focus:ring-red-500'
-                              : 'border-slate-200 focus:ring-[#104A96] text-slate-800 bg-white'
+                          type={f.type || 'text'}
+                          value={formData[f.name] || ''}
+                          onChange={(e) => handleInputChange(f.name, e.target.value)}
+                          placeholder={f.placeholder || f.label}
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm focus:outline-none focus:ring-2 bg-white ${
+                            hasErr ? 'border-red-400 focus:ring-red-400 bg-red-50/30' : 'border-slate-300 focus:ring-[#104A96]'
                           }`}
                         />
-                      </div>
-
-                      {hasError && (
-                        <p className="mt-1.5 text-xs text-red-600 font-semibold flex items-center gap-1.5 animate-in fade-in">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
-                          <span>{err}</span>
-                        </p>
                       )}
+                      {hasErr && <p className="text-[11px] text-red-600 font-semibold">{hasErr}</p>}
                     </div>
                   );
                 })}
               </div>
 
-            </div>
-
-            {/* ========================================================================= */}
-            {/* 3. DEDICATED DOCUMENT UPLOAD SECTION (Requirement 11)                     */}
-            {/* ========================================================================= */}
-            <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
-              
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase mb-1">
-                    <UploadCloud className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Upload Document Files</span>
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                    Upload Required Proofs for {service.title}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Supports JPG, JPEG, PNG, and PDF. You can preview, replace, or remove anytime before submitting.
-                  </p>
-                </div>
-
-                <div className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 self-start sm:self-auto">
-                  {documents.filter((d) => d.status === 'uploaded').length} / {documents.length} Uploaded
-                </div>
-              </div>
-
-              {/* Document Upload Cards */}
-              <div className="space-y-3.5">
-                {documents.map((doc) => {
-                  const isUploaded = doc.status === 'uploaded';
-                  const docCfg = config.documents.find((d) => d.id === doc.id);
-                  const isOptional = (doc as any).isOptional === true || 
-                                     (doc as any).isMandatory === false || 
-                                     (docCfg as any)?.isOptional === true || 
-                                     doc.name.toLowerCase().includes('(optional)');
-                  const isRequired = !isOptional;
-
-                  return (
-                    <div
-                      key={doc.id}
-                      className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-                        isUploaded
-                          ? 'bg-emerald-50/40 border-emerald-200'
-                          : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-                        
-                        {/* Meta */}
-                        <div className="flex items-start gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                            isUploaded ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                          }`}>
-                            <FileText className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                                {doc.name}
-                              </h4>
-                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                                isUploaded 
-                                  ? 'bg-emerald-100 text-emerald-800' 
-                                  : isRequired 
-                                    ? 'bg-amber-100 text-amber-800' 
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
-                              }`}>
-                                {isUploaded ? 'Uploaded' : isRequired ? 'Required' : 'Optional'}
-                              </span>
-                            </div>
-
-                            <p className="text-xs text-slate-500 mt-1">
-                              {doc.fileName ? (
-                                <strong className="text-slate-800">{doc.fileName} ({doc.fileSize})</strong>
-                              ) : (
-                                (doc as any).description || docCfg?.description || 'Accepted formats: JPG, JPEG, PNG, PDF (Max 10MB)'
-                              )}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-                          {/* Ready / Not Ready Toggle */}
-                          <button
-                            type="button"
-                            onClick={() => toggleDocReady(doc.id)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 ${
-                              doc.isReady
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                                : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-                            }`}
-                          >
-                            <span className={`w-2 h-2 rounded-full ${doc.isReady ? 'bg-emerald-600' : 'bg-slate-400'}`} />
-                            <span>{doc.isReady ? 'Ready' : 'Not Ready'}</span>
-                          </button>
-
-                          {/* Preview Button */}
-                          {isUploaded && (
-                            <button
-                              type="button"
-                              onClick={() => setPreviewDoc(doc)}
-                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#F1F7FF] text-[#104A96] hover:bg-blue-100 transition-colors flex items-center gap-1.5"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Preview</span>
-                            </button>
-                          )}
-
-                          {/* Upload / Replace Button */}
-                          <label className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1.5 ${
-                            isUploaded 
-                              ? 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50' 
-                              : 'bg-[#104A96] hover:bg-[#07366F] text-white shadow-xs'
-                          }`}>
-                            <input
-                              type="file"
-                              accept="image/*,application/pdf"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(doc.id, file);
-                              }}
-                            />
-                            {isUploaded ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                <span>Replace</span>
-                              </>
-                            ) : (
-                              <>
-                                <UploadCloud className="w-3.5 h-3.5" />
-                                <span>Upload File</span>
-                              </>
-                            )}
-                          </label>
-
-                          {/* Remove Button */}
-                          {isUploaded && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveDoc(doc.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                              title="Remove uploaded file"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-            </div>
-
-            {/* ========================================================================= */}
-            {/* 4. SPECIFIC REQUEST & SUBMISSION (Requirement 12)                        */}
-            {/* ========================================================================= */}
-            <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
-              
-              <div className="border-b border-slate-100 pb-4">
-                <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                  Processing Priority & Special Request
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Select your timeline priority and add any optional instructions for our executive.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Processing Priority
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: 'Standard (Within normal timeline)', label: 'Standard Timeline' },
-                    { id: 'Urgent (Priority processing)', label: 'Urgent / Priority' },
-                    { id: 'Immediate Consultation', label: 'Phone Consultation First' },
-                  ].map((item) => (
-                    <label
-                      key={item.id}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer text-xs font-semibold ${
-                        formData.urgency === item.id 
-                          ? 'bg-orange-50 border-[#FF8500] text-[#FF8500] font-bold shadow-xs' 
-                          : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="urgency"
-                        value={item.id}
-                        checked={formData.urgency === item.id}
-                        onChange={(e) => handleInputChange('urgency', e.target.value)}
-                        className="text-[#FF8500] focus:ring-[#FF8500]"
-                      />
-                      <span>{item.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Customer Remarks / Specific Instructions (Optional)
+              {/* Specific Request / Remarks */}
+              <div className="space-y-1 pt-2">
+                <label className="text-xs font-bold text-slate-700 block">
+                  {t('app.remarks', 'Specific Request / Customer Remarks')}
                 </label>
                 <textarea
                   rows={3}
-                  value={formData.customerRemarks || ''}
-                  onChange={(e) => handleInputChange('customerRemarks', e.target.value)}
-                  placeholder="Any convenient callback timings or specific details..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] text-slate-800"
+                  value={formData.specificRequest || ''}
+                  onChange={(e) => handleInputChange('specificRequest', e.target.value)}
+                  placeholder="Provide any specific details or corrections needed..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#104A96] bg-white resize-none"
                 />
               </div>
 
-              {/* Submit Action Bar */}
-              <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>256-bit encrypted transmission. Identity verified securely.</span>
-                </div>
-
+              {/* Continue to Documents Button */}
+              <div className="pt-4 flex justify-end">
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-[#FF8500] hover:bg-[#e67700] text-white text-sm font-bold shadow-md hover:shadow-lg transition-all"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-[#104A96] hover:bg-[#07366F] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                 >
-                  {isSubmitting ? (
-                    <span>Submitting Application...</span>
-                  ) : (
-                    <>
-                      <span>Submit Application Details</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
+                  <span>{t('app.continueToDocs', 'Continue to Document Upload')}</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
 
@@ -1529,107 +858,589 @@ export const ServiceDetailPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* 5. EXPANDABLE SECTION: PROCESS STEPS, BENEFITS & FAQS                    */}
+        {/* STEP 3: DOCUMENT UPLOAD CHECKLIST                                         */}
         {/* ========================================================================= */}
-        <div className="bg-white rounded-3xl p-5 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
-          <div 
-            onClick={() => setShowInfoAccordion(!showInfoAccordion)}
-            className="flex items-center justify-between cursor-pointer select-none"
-          >
-            <div>
-              <h3 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                <span>About {service.title} — Process Steps, Benefits & FAQs</span>
-              </h3>
-              <p className="text-xs text-slate-500">
-                Click to expand detailed statutory procedures and official guidelines.
+        {currentStep === 'documents' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#104A96] text-xs font-bold tracking-wide uppercase mb-1">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>{t('docs.title', 'Required Supporting Documents')}</span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                    Documents Checklist for {service.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {t('docs.subtitle', 'Upload clear photos or scans (PDF, JPG, PNG). Ensure all text and dates are legible.')}
+                  </p>
+                </div>
+
+                <div className="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 self-start sm:self-auto">
+                  {documents.filter((d) => d.status === 'uploaded').length} / {documents.length} Files Attached
+                </div>
+              </div>
+
+              {/* Documents Cards Grid */}
+              <div className="space-y-3.5">
+                {documents.map((doc, idx) => {
+                  const isUploaded = doc.status === 'uploaded' && doc.fileUrl;
+
+                  return (
+                    <div
+                      key={doc.id}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        isUploaded 
+                          ? 'border-emerald-300 bg-emerald-50/30' 
+                          : doc.isMandatory 
+                            ? 'border-slate-200 bg-white hover:border-slate-300' 
+                            : 'border-slate-200 bg-slate-50/50'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
+                            isUploaded ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {isUploaded ? <Check className="w-4 h-4" /> : idx + 1}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs sm:text-sm text-slate-900">{doc.name}</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                doc.isMandatory ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
+                              }`}>
+                                {doc.isMandatory ? t('docs.mandatory', 'Mandatory') : t('docs.optional', 'Optional')}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {doc.description || 'Statutory proof document.'}
+                            </p>
+                            {isUploaded && (
+                              <div className="flex items-center gap-2 mt-1.5 text-[11px] font-semibold text-emerald-800">
+                                <span>✓ {doc.fileName}</span>
+                                {doc.fileSize && <span>({doc.fileSize})</span>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Upload & Action Buttons */}
+                        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                          {isUploaded && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setPreviewDocIndex(idx)}
+                                className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{t('docs.preview', 'Preview')}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFile(doc.id)}
+                                className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                title="Remove file"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+
+                          <label className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                            isUploaded
+                              ? 'bg-white border border-slate-300 hover:bg-slate-50 text-slate-700'
+                              : 'bg-[#104A96] hover:bg-[#07366F] text-white'
+                          }`}>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="sr-only"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFileUpload(doc.id, file);
+                              }}
+                            />
+                            {isUploaded ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>{t('docs.replace', 'Replace')}</span>
+                              </>
+                            ) : (
+                              <>
+                                <UploadCloud className="w-3.5 h-3.5" />
+                                <span>{t('docs.upload', 'Upload File')}</span>
+                              </>
+                            )}
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Navigation Actions */}
+              <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep('form')}
+                  className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>{t('app.back', 'Back to Details')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleProceedToReview}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-[#104A96] hover:bg-[#07366F] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  <span>{t('docs.reviewAndProceed', 'Review Application Before Submission')}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* STEP 4: APPLICATION REVIEW                                                */}
+        {/* ========================================================================= */}
+        {currentStep === 'review' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-6">
+              
+              <div className="border-b border-slate-100 pb-4">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#104A96] text-xs font-bold tracking-wide uppercase mb-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{t('review.title', 'Review Application Details')}</span>
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900">
+                  {service.title} Application Summary
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {t('review.subtitle', 'Please verify all entered details and uploaded documents carefully before proceeding to payment.')}
+                </p>
+              </div>
+
+              {/* Personal Details Summary */}
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-[#104A96]" />
+                    <span>{t('review.personalDetails', 'Personal & Contact Information')}</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep('form')}
+                    className="text-xs font-bold text-[#104A96] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>{t('review.edit', 'Edit')}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Applicant Name</span>
+                    <span className="font-bold text-slate-900 block truncate">{formData.fullName || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Mobile</span>
+                    <span className="font-bold text-slate-900 block font-mono">{formData.mobile || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Email</span>
+                    <span className="font-bold text-slate-900 block truncate">{formData.email || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Service Type</span>
+                    <span className="font-bold text-[#104A96] block truncate capitalize">
+                      {selectedSubService?.replace('-', ' ') || 'Standard'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Uploaded Documents Summary */}
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <FileCheck2 className="w-4 h-4 text-[#104A96]" />
+                    <span>{t('review.documentsAttached', 'Uploaded Supporting Documents')} ({documents.filter(d => d.status === 'uploaded').length})</span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep('documents')}
+                    className="text-xs font-bold text-[#104A96] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>{t('review.edit', 'Edit')}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {documents.filter(d => d.status === 'uploaded').map((doc, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 block truncate">{doc.name}</span>
+                        <span className="text-[10px] text-emerald-700 font-semibold block">{doc.fileName}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDocIndex(idx)}
+                        className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#104A96] text-[11px] font-bold shrink-0"
+                      >
+                        Preview
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fee Notice */}
+              <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 flex items-start gap-3 text-xs">
+                <ShieldCheck className="w-5 h-5 text-[#104A96] shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-extrabold text-slate-900 block">
+                    {t('pay.serviceFeeTitle', 'Apply-365 Service Processing Fee')}: ₹{feeAmount}
+                  </span>
+                  <p className="text-slate-600">
+                    {t('pay.disclaimer', 'This is a nominal Apply-365 platform processing and facilitation fee, not a government statutory tax.')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep('documents')}
+                  className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>{t('app.back', 'Back to Documents')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAndProceedToPayment}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#104A96] to-[#0A2F63] hover:from-[#0c3c7d] hover:to-[#07244c] text-white font-extrabold text-xs sm:text-sm shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Saving Application...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{t('review.proceedToPayment', 'Submit Details & Proceed to Payment (₹50)')}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* STEP 5: FINAL PAYMENT PAGE (PAYMENT-LAST)                                  */}
+        {/* ========================================================================= */}
+        {currentStep === 'payment' && pendingApp && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            
+            <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/80 space-y-8">
+              
+              <div className="border-b border-slate-100 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase mb-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Application Saved (Reference: {pendingApp.id})</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    {t('pay.title', 'Complete Your Application Payment')}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                    {t('pay.pendingNotice', 'Your application is securely saved. Please complete the ₹50 fee to submit for officer review.')}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200 text-left self-start sm:self-auto">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Tracking Number</span>
+                  <span className="font-mono font-black text-sm sm:text-base text-[#104A96] block">{pendingApp.id}</span>
+                </div>
+              </div>
+
+              {/* Payment Summary Box */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                <div className="lg:col-span-7 space-y-5">
+                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      {t('pay.summary', 'Payment Summary')}
+                    </h3>
+
+                    <div className="space-y-3 divide-y divide-slate-200/60 text-xs sm:text-sm">
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-slate-600">{t('pay.service', 'Selected Service')}</span>
+                        <span className="font-bold text-slate-900">{pendingApp.serviceTitle}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="text-slate-600">Applicant</span>
+                        <span className="font-bold text-slate-900">{pendingApp.customerName}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <div>
+                          <span className="text-slate-700 font-semibold block">{t('pay.serviceFeeTitle', 'Apply-365 Service Processing Fee')}</span>
+                          <span className="text-[11px] text-slate-400 block">{t('pay.disclaimer', 'Private documentation facilitation charge')}</span>
+                        </div>
+                        <span className="font-bold text-slate-900 text-sm">₹{feeAmount}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="text-slate-600">{t('pay.verification', 'Document Verification & Legal Review')}</span>
+                        <span className="font-bold text-emerald-600">{t('pay.included', 'Included (₹0)')}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3">
+                        <span className="text-slate-600">{t('pay.smsUpdates', 'SMS & WhatsApp Updates')}</span>
+                        <span className="font-bold text-emerald-600">{t('pay.included', 'Included (₹0)')}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 text-base">
+                        <span className="font-black text-slate-900">{t('pay.total', 'Total Amount Payable')}</span>
+                        <span className="font-black text-2xl text-[#104A96]">₹{feeAmount}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trust Indicators */}
+                  <div className="grid grid-cols-2 gap-3 text-xs text-slate-600">
+                    <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-[#104A96] shrink-0" />
+                      <div>
+                        <span className="font-bold text-slate-800 block">256-Bit SSL</span>
+                        <span className="text-[10px] text-slate-400">Bank Grade Security</span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center gap-2">
+                      <Receipt className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div>
+                        <span className="font-bold text-slate-800 block">Instant Receipt</span>
+                        <span className="text-[10px] text-slate-400">PDF Generated</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Pay Card */}
+                <div className="lg:col-span-5 bg-gradient-to-b from-slate-50 to-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-5">
+                  <div className="space-y-1">
+                    <span className="text-xs font-black uppercase tracking-wider text-[#104A96] block">
+                      Pay via Razorpay Gateway
+                    </span>
+                    <p className="text-xs text-slate-500">
+                      Supports UPI (GPay, PhonePe, Paytm), Debit/Credit Cards & Net Banking.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Applicant Contact:</span>
+                      <span className="font-mono font-bold text-slate-800">{pendingApp.customerMobile}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Payable:</span>
+                      <span className="font-bold text-[#104A96]">₹{feeAmount}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCompletePayment}
+                    disabled={isProcessingPayment}
+                    className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer active:scale-98 disabled:opacity-50"
+                  >
+                    {isProcessingPayment ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>Connecting to Gateway...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-5 h-5" />
+                        <span>{t('pay.button', 'Pay ₹50 & Complete Application')}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-[11px] text-center text-slate-400">
+                    {t('pay.secureNotice', 'Secured by Razorpay • UPI, Cards, Net Banking & Wallets Accepted')}
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* STEP 6: SUCCESS CONFIRMATION                                              */}
+        {/* ========================================================================= */}
+        {currentStep === 'success' && pendingApp && (
+          <div className="bg-white rounded-3xl p-6 sm:p-12 shadow-xl border border-slate-100 text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
+            
+            <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{t('success.title', 'Your Application Has Been Successfully Submitted!')}</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                Application Received & Processing
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
+                {t('success.desc', 'Our documentation team has received your application and documents.')}
               </p>
             </div>
-            <button
-              type="button"
-              className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-            >
-              {showInfoAccordion ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-          </div>
 
-          {showInfoAccordion && (
-            <div className="space-y-8 pt-4 border-t border-slate-100 animate-in fade-in duration-200">
-              
-              {/* Full Description & Benefits */}
-              <div className="space-y-4">
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  {service.fullDescription}
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  {service.benefits.map((benefit, idx) => (
-                    <div key={idx} className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <span>{benefit}</span>
-                    </div>
-                  ))}
-                </div>
+            {/* Application Tracking Number Card */}
+            <div className="max-w-md mx-auto p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 flex items-center justify-between">
+              <div className="text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                  {t('success.trackingNo', 'Application Tracking Number')}
+                </span>
+                <span className="text-lg sm:text-xl font-mono font-black text-[#104A96]">
+                  {pendingApp.id}
+                </span>
               </div>
-
-              {/* 4 Process Steps */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider text-xs">
-                  Official Application Process Workflow
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {service.processSteps.map((step, idx) => (
-                    <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
-                      <div className="w-6 h-6 rounded-full bg-[#104A96] text-white text-xs font-bold flex items-center justify-center">
-                        {idx + 1}
-                      </div>
-                      <h5 className="text-xs font-bold text-slate-900">{step.title}</h5>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">{step.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* FAQs */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider text-xs">
-                  Frequently Asked Questions
-                </h4>
-                <div className="space-y-2.5">
-                  {service.faqs.map((faq, idx) => {
-                    const isOpen = openFaq === idx;
-                    return (
-                      <div key={idx} className="rounded-xl border border-slate-200 overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setOpenFaq(isOpen ? null : idx)}
-                          className="w-full flex items-center justify-between p-3.5 text-left text-xs sm:text-sm font-bold text-slate-800 bg-slate-50 hover:bg-slate-100 transition-colors"
-                        >
-                          <span>{faq.question}</span>
-                          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                        </button>
-                        {isOpen && (
-                          <div className="p-3.5 text-xs text-slate-600 bg-white border-t border-slate-100 leading-relaxed">
-                            {faq.answer}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
+              <button
+                type="button"
+                onClick={copyAppId}
+                className="px-3.5 py-2 rounded-xl bg-white border border-blue-200 text-[#104A96] text-xs font-bold hover:bg-blue-50 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                {copiedId ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{t('success.copied', 'Copied!')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{t('success.copy', 'Copy')}</span>
+                  </>
+                )}
+              </button>
             </div>
-          )}
 
-        </div>
+            {/* Application Overview Grid */}
+            <div className="max-w-md mx-auto grid grid-cols-2 gap-3 text-left">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Service</span>
+                <span className="text-xs font-bold text-slate-800 truncate block">{pendingApp.serviceTitle}</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Application Status</span>
+                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                  {t('success.initialStatus', 'Application Received')}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Status</span>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                  Paid: ₹{feeAmount}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Razorpay Txn</span>
+                <span className="text-[11px] font-mono font-bold text-slate-700 truncate block">
+                  {pendingApp.paymentTransactionId || 'Verified'}
+                </span>
+              </div>
+            </div>
+
+            {/* PDF Downloads & Navigation */}
+            <div className="pt-2 max-w-md mx-auto space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadReceipt}
+                  className="w-full py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{t('success.downloadReceipt', 'Payment Receipt (PDF)')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadSoftCopy}
+                  className="w-full py-3 px-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{t('success.downloadSoftCopy', 'Soft Copy (PDF)')}</span>
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentStep('form');
+                    setPendingApp(null);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
+                >
+                  {t('success.applyAnother', 'Apply for Another Service')}
+                </button>
+
+                <Link
+                  to="/dashboard"
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold transition-colors text-center"
+                >
+                  {t('success.goToDashboard', 'Go to Citizen Dashboard')}
+                </Link>
+              </div>
+            </div>
+
+          </div>
+        )}
 
       </div>
 
-      {/* Document Preview Modal */}
-      <DocumentPreviewModal 
-        document={previewDoc}
-        onClose={() => setPreviewDoc(null)}
-      />
+      {/* Global Document Preview Modal */}
+      {previewDocIndex >= 0 && documents[previewDocIndex] && (
+        <DocumentPreviewModal
+          document={documents[previewDocIndex]}
+          documents={documents}
+          currentIndex={previewDocIndex}
+          onNavigate={(newIdx) => setPreviewDocIndex(newIdx)}
+          onClose={() => setPreviewDocIndex(-1)}
+          customerName={formData.fullName || currentUser?.name || 'Applicant'}
+          applicationId={pendingApp?.id || 'Draft Application'}
+        />
+      )}
 
     </div>
   );

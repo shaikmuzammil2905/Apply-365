@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'r
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { AdminLayout } from './components/admin/AdminLayout';
@@ -324,10 +325,12 @@ export const App: React.FC = () => {
     <AuthProvider>
       <AdminAuthProvider>
         <SettingsProvider>
-          <Router>
-            <ScrollToTop />
-            <AppContent />
-          </Router>
+          <LanguageProvider>
+            <Router>
+              <ScrollToTop />
+              <AppContent />
+            </Router>
+          </LanguageProvider>
         </SettingsProvider>
       </AdminAuthProvider>
     </AuthProvider>

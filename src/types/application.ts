@@ -10,7 +10,7 @@ export type DocumentStatus = 'uploaded' | 'pending' | 'ready';
 export interface ApplicationDocument {
   id: string;
   name: string;
-  type: DocumentType;
+  type: DocumentType | string;
   isReady: boolean;
   status: DocumentStatus;
   fileUrl?: string; // Base64 or Blob URL for preview
@@ -18,6 +18,10 @@ export interface ApplicationDocument {
   fileSize?: string;
   fileType?: string;
   uploadedAt?: string;
+  isMandatory?: boolean;
+  description?: string;
+  customerName?: string;
+  applicationId?: string;
 }
 
 export type ApplicationStatus = 
@@ -118,6 +122,7 @@ export interface CustomerApplication {
   serviceTitle: string;
   serviceType?: string;
   status: ApplicationStatus;
+  statusHistory?: any[];
   paymentStatus?: 'payment_completed' | 'payment_pending' | 'free_tier' | string;
   paymentAmount?: number;
   paymentTransactionId?: string;

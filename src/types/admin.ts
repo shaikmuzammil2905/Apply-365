@@ -51,6 +51,7 @@ export interface LeadAttachment {
   url: string;
   type: string;
   sizeBytes?: number;
+  size?: string;
 }
 
 export interface Lead {

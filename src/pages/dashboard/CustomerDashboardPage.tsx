@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getCustomerApplications } from '../../services/dbService';
-import { getCustomerInvoices, getCustomerNotifications, markNotificationAsRead, recordInvoicePayment } from '../../services/dataSyncService';
+import { getCustomerApplications, saveApplication } from '../../services/dbService';
+import { getCustomerInvoices, getCustomerNotifications, markNotificationAsRead, recordInvoicePayment, createInvoice } from '../../services/dataSyncService';
 import { CustomerApplication, ApplicationDocument, CustomerNotification } from '../../types/application';
 import { CustomerInvoice, InvoicePayment } from '../../types/invoices';
 import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
@@ -259,6 +259,101 @@ export const CustomerDashboardPage: React.FC = () => {
     }
   };
 
+  const handlePayApplicationFee = async (app: CustomerApplication) => {
+    try {
+      const resp = await openRazorpayCheckout({
+        amount: 50,
+        invoiceId: app.id,
+        description: `Apply-365 Facilitation Fee — ${app.serviceTitle}`,
+        customerName: app.customerName || currentUser?.name || 'Customer',
+        customerEmail: app.customerEmail || currentUser?.email || 'applyallservices365@gmail.com',
+        customerPhone: app.customerMobile || currentUser?.mobile || '9121992365',
+        notes: {
+          application_id: app.id,
+          service_title: app.serviceTitle
+        }
+      });
+
+      const txnRef = resp.razorpay_payment_id;
+
+      const updatedApp: CustomerApplication = {
+        ...app,
+        paymentStatus: 'payment_completed',
+        paymentAmount: 50,
+        paymentTransactionId: txnRef,
+        status: 'application_received',
+        statusHistory: [
+          ...(app.statusHistory || []),
+          {
+            status: 'application_received',
+            title: 'Payment Completed & Application Received',
+            description: `Application facilitation fee of ₹50 verified via Razorpay (${txnRef}). Application is queued for verification.`,
+            timestamp: new Date().toISOString(),
+            completed: true
+          }
+        ]
+      };
+
+      await saveApplication(updatedApp);
+
+      try {
+        await createInvoice({
+          applicationId: app.id,
+          customerId: app.customerId,
+          customerName: app.customerName,
+          customerEmail: app.customerEmail,
+          customerMobile: app.customerMobile,
+          serviceName: app.serviceTitle,
+          invoiceDate: new Date().toISOString().slice(0, 10),
+          dueDate: new Date().toISOString().slice(0, 10),
+          items: [
+            {
+              id: 'item-1',
+              description: `${app.serviceTitle} — Statutory Facilitation Fee`,
+              quantity: 1,
+              unitPrice: 50,
+              total: 50
+            }
+          ],
+          subtotal: 50,
+          taxAmount: 0,
+          discount: 0,
+          taxRate: 0,
+          totalAmount: 50,
+          amountPaid: 50,
+          balanceDue: 0,
+          paymentStatus: 'paid',
+          invoiceStatus: 'finalized',
+          payments: [
+            {
+              id: `pay_${Date.now()}`,
+              amount: 50,
+              paymentDate: new Date().toISOString().slice(0, 10),
+              paymentMethod: 'Razorpay',
+              transactionReference: txnRef,
+              recordedBy: 'Razorpay Gateway',
+              notes: 'Paid online via Customer Dashboard'
+            }
+          ],
+          notes: 'Apply-365 Service Processing Fee'
+        });
+      } catch (invErr) {
+        console.warn('Auto invoice create warning:', invErr);
+      }
+
+      window.dispatchEvent(new CustomEvent('apply365_data_sync'));
+      try {
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+      } catch {}
+
+      await loadCustomerData();
+    } catch (err: any) {
+      if (err.message && !err.message.includes('closed by user')) {
+        alert(err.message || 'Payment processing failed. Please try again.');
+      }
+    }
+  };
+
   const underReviewCount = applications.filter((a) => 
     ['submitted', 'under_review', 'under review', 'submitted_to_authority', 'processing'].includes(String(a.status).toLowerCase())
   ).length;
@@ -451,6 +546,17 @@ export const CustomerDashboardPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {app.paymentStatus === 'payment_pending' && (
+                          <button
+                            type="button"
+                            onClick={() => handlePayApplicationFee(app)}
+                            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>Pay ₹50</span>
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleDownloadAppPDF(app)}
@@ -549,60 +655,71 @@ export const CustomerDashboardPage: React.FC = () => {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                          {/* Payment Receipt Button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const fee = app.paymentAmount || linkedInv?.totalAmount || 50;
-                              const invPdf = generateInvoicePDF({
-                                id: `inv_${app.id}`,
-                                invoiceNumber: `INV-${app.id.replace('APP365-', '')}`,
-                                applicationId: app.id,
-                                customerId: app.customerId,
-                                customerName: app.customerName,
-                                customerEmail: app.customerEmail,
-                                customerMobile: app.customerMobile,
-                                serviceName: app.serviceTitle,
-                                invoiceDate: (app.createdAt || app.submissionDate || new Date().toISOString()).slice(0, 10),
-                                dueDate: (app.createdAt || app.submissionDate || new Date().toISOString()).slice(0, 10),
-                                items: [
-                                  {
-                                    id: 'item-1',
-                                    description: `${app.serviceTitle} — Statutory Facilitation Fee`,
-                                    quantity: 1,
-                                    unitPrice: fee,
-                                    total: fee
-                                  }
-                                ],
-                                subtotal: fee,
-                                taxAmount: 0,
-                                discount: 0,
-                                taxRate: 0,
-                                totalAmount: fee,
-                                amountPaid: fee,
-                                balanceDue: 0,
-                                paymentStatus: 'paid',
-                                invoiceStatus: 'finalized',
-                                payments: [
-                                  {
-                                    id: `pay_${app.id}`,
-                                    amount: fee,
-                                    paymentDate: (app.createdAt || new Date().toISOString()).slice(0, 10),
-                                    paymentMethod: 'razorpay',
-                                    referenceNumber: app.paymentTransactionId || 'Razorpay Verified',
-                                    recordedBy: 'Razorpay Gateway',
-                                    notes: 'Application fee paid online'
-                                  }
-                                ],
-                                notes: `Official payment receipt for application ${app.id}.`
-                              });
-                              invPdf.save(`Receipt_${app.id}.pdf`);
-                            }}
-                            className="px-3.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                          >
-                            <Download className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>Payment Receipt</span>
-                          </button>
+                          {app.paymentStatus === 'payment_pending' ? (
+                            <button
+                              type="button"
+                              onClick={() => handlePayApplicationFee(app)}
+                              className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer animate-pulse hover:animate-none"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>Complete Your Payment – ₹50</span>
+                            </button>
+                          ) : (
+                            /* Payment Receipt Button */
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const fee = app.paymentAmount || linkedInv?.totalAmount || 50;
+                                const invPdf = generateInvoicePDF({
+                                  id: `inv_${app.id}`,
+                                  invoiceNumber: `INV-${app.id.replace('APP365-', '')}`,
+                                  applicationId: app.id,
+                                  customerId: app.customerId,
+                                  customerName: app.customerName,
+                                  customerEmail: app.customerEmail,
+                                  customerMobile: app.customerMobile,
+                                  serviceName: app.serviceTitle,
+                                  invoiceDate: (app.createdAt || app.submissionDate || new Date().toISOString()).slice(0, 10),
+                                  dueDate: (app.createdAt || app.submissionDate || new Date().toISOString()).slice(0, 10),
+                                  items: [
+                                    {
+                                      id: 'item-1',
+                                      description: `${app.serviceTitle} — Statutory Facilitation Fee`,
+                                      quantity: 1,
+                                      unitPrice: fee,
+                                      total: fee
+                                    }
+                                  ],
+                                  subtotal: fee,
+                                  taxAmount: 0,
+                                  discount: 0,
+                                  taxRate: 0,
+                                  totalAmount: fee,
+                                  amountPaid: fee,
+                                  balanceDue: 0,
+                                  paymentStatus: 'paid',
+                                  invoiceStatus: 'finalized',
+                                  payments: [
+                                    {
+                                      id: `pay_${app.id}`,
+                                      amount: fee,
+                                      paymentDate: (app.createdAt || new Date().toISOString()).slice(0, 10),
+                                      paymentMethod: 'razorpay',
+                                      referenceNumber: app.paymentTransactionId || 'Razorpay Verified',
+                                      recordedBy: 'Razorpay Gateway',
+                                      notes: 'Application fee paid online'
+                                    }
+                                  ],
+                                  notes: `Official payment receipt for application ${app.id}.`
+                                });
+                                invPdf.save(`Receipt_${app.id}.pdf`);
+                              }}
+                              className="px-3.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            >
+                              <Download className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>Payment Receipt</span>
+                            </button>
+                          )}
 
                           {linkedInv && (
                             <button

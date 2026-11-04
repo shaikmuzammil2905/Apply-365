@@ -13,6 +13,8 @@ import {
   ApplicationDeliveryRecord 
 } from '../../types/application';
 import { generateApplicationSummaryPDF, generateInvoicePDF } from '../../utils/pdfGenerator';
+import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
+import { downloadDocumentFile } from '../../utils/fileDownloadHelper';
 import { 
   FileText, 
   Search, 
@@ -37,7 +39,10 @@ import {
   MessageSquare,
   CreditCard,
   Lock,
-  BadgeCheck
+  BadgeCheck,
+  Info,
+  Image as ImageIcon,
+  FileCheck2
 } from 'lucide-react';
 
 const ALL_STATUSES = [
@@ -86,6 +91,10 @@ export const AdminApplicationsPage: React.FC = () => {
   const [recipientContact, setRecipientContact] = useState('');
   const [isSendingCopy, setIsSendingCopy] = useState(false);
   const [deliverySuccess, setDeliverySuccess] = useState('');
+
+  // Document Preview & Details State
+  const [activePreviewDocIndex, setActivePreviewDocIndex] = useState<number>(-1);
+  const [detailsDocIndex, setDetailsDocIndex] = useState<number | null>(null);
 
   const loadApps = async () => {
     const list = await getAllApplications();
@@ -749,30 +758,103 @@ export const AdminApplicationsPage: React.FC = () => {
               )}
 
               {/* Uploaded Documents */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Attached Citizen Proofs ({selectedApp.documents.length})
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileCheck2 className="w-3.5 h-3.5 text-[#104A96]" />
+                    <span>Attached Citizen Proofs ({selectedApp.documents.length})</span>
+                  </h4>
+                  <span className="text-[10px] text-slate-400">View in integrated viewer • Download original</span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2.5">
                   {selectedApp.documents.map((doc, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-slate-200 bg-white flex items-center justify-between gap-2 shadow-2xs">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-800 truncate">{doc.name}</p>
-                        <span className={`text-[10px] font-semibold ${doc.fileUrl ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {doc.fileUrl ? 'Verified & Uploaded' : 'Pending Upload'}
-                        </span>
+                    <div key={idx} className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-200 transition-all shadow-2xs space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex items-center gap-2.5">
+                          {doc.fileName?.match(/\.(jpeg|jpg|png|webp|gif)/i) || doc.fileType?.includes('image') ? (
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                              <ImageIcon className="w-4 h-4" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">{doc.name}</p>
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <span className={doc.fileUrl ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'}>
+                                {doc.fileUrl ? '✓ File Attached' : 'Pending Upload'}
+                              </span>
+                              {doc.fileSize && <span className="text-slate-400">• {doc.fileSize}</span>}
+                              {doc.fileName && <span className="text-slate-400 truncate max-w-[140px]">• {doc.fileName}</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3 Working Actions: View, Download, Details */}
+                        {doc.fileUrl ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Action A: View */}
+                            <button
+                              type="button"
+                              onClick={() => setActivePreviewDocIndex(idx)}
+                              className="px-2.5 py-1.5 rounded-lg bg-[#104A96] hover:bg-[#07366F] text-white text-[11px] font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                              title="View in Integrated Preview"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>View</span>
+                            </button>
+
+                            {/* Action B: Download */}
+                            <button
+                              type="button"
+                              onClick={() => downloadDocumentFile(doc.fileUrl, doc.fileName || `${doc.name}.png`)}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                              title="Download Original File"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
+                            </button>
+
+                            {/* Action C: Details */}
+                            <button
+                              type="button"
+                              onClick={() => setDetailsDocIndex(detailsDocIndex === idx ? null : idx)}
+                              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                detailsDocIndex === idx ? 'bg-blue-100 text-[#104A96]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                              }`}
+                              title="Show Details"
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">No File Uploaded</span>
+                        )}
                       </div>
-                      {doc.fileUrl ? (
-                        <a
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 rounded-md bg-[#104A96] text-white text-[11px] font-bold hover:bg-[#07366F] shrink-0"
-                        >
-                          View File
-                        </a>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic">No File</span>
+
+                      {/* Expandable Details Drawer */}
+                      {detailsDocIndex === idx && (
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 grid grid-cols-2 sm:grid-cols-4 gap-2 animate-in fade-in duration-150">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Filename:</span>
+                            <span className="font-semibold text-slate-800 truncate block">{doc.fileName || doc.name}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Type:</span>
+                            <span className="font-semibold text-slate-800 truncate block">{doc.fileType || 'Document Proof'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Size:</span>
+                            <span className="font-semibold text-slate-800 truncate block">{doc.fileSize || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Uploaded At:</span>
+                            <span className="font-semibold text-slate-800 truncate block">{doc.uploadedAt || 'With Application'}</span>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1086,6 +1168,19 @@ export const AdminApplicationsPage: React.FC = () => {
 
           </div>
         </div>
+      )}
+
+      {/* Interactive Document Preview Modal */}
+      {selectedApp && activePreviewDocIndex >= 0 && selectedApp.documents && selectedApp.documents[activePreviewDocIndex] && (
+        <DocumentPreviewModal
+          document={selectedApp.documents[activePreviewDocIndex]}
+          documents={selectedApp.documents}
+          currentIndex={activePreviewDocIndex}
+          onNavigate={(newIdx) => setActivePreviewDocIndex(newIdx)}
+          onClose={() => setActivePreviewDocIndex(-1)}
+          customerName={selectedApp.customerName}
+          applicationId={selectedApp.id}
+        />
       )}
 
     </div>

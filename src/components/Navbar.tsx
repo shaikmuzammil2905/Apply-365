@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebsiteSettings } from '../context/SettingsContext';
+import { useLanguage } from '../context/LanguageContext';
+import { LanguageSelector } from './LanguageSelector';
 import { TopAnnouncementBar } from './TopAnnouncementBar';
 import { 
   ChevronDown, 
@@ -43,6 +45,7 @@ const serviceNavItems: ServiceNavItem[] = [
 export const Navbar: React.FC = () => {
   const { currentUser, isAuthenticated, logout } = useAuth();
   const { settings } = useWebsiteSettings();
+  const { t } = useLanguage();
   const [isScrolled, setIsScrolled] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -248,6 +251,9 @@ export const Navbar: React.FC = () => {
 
           {/* Right Action Buttons */}
           <div className="hidden lg:flex items-center gap-3">
+            {/* Language Selector */}
+            <LanguageSelector variant="header" />
+
             {/* Phone Quick Link */}
             {showCall && (
               <a
@@ -317,7 +323,10 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* Mobile Actions matching approved reference: Phone, WhatsApp, and Menu */}
-          <div className="flex items-center gap-2 lg:hidden">
+          <div className="flex items-center gap-1.5 lg:hidden">
+            {/* Mobile Language Selector */}
+            <LanguageSelector variant="header" className="mr-0.5 scale-90 origin-right" />
+
             {/* Blue circular telephone button */}
             <a
               href="tel:+919876543210"
@@ -358,6 +367,14 @@ export const Navbar: React.FC = () => {
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-100 bg-white px-4 pt-3 pb-6 shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
           
+          {/* Language Selector in Mobile Drawer */}
+          <div className="mb-3.5 pb-3 border-b border-slate-100">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+              Select Language / భాష / भाषा
+            </span>
+            <LanguageSelector variant="mobile" />
+          </div>
+
           {/* Customer Auth Card at Top of Mobile Drawer */}
           <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-[#F1F7FF] to-blue-50/50 border border-blue-100/80">
             {isAuthenticated ? (

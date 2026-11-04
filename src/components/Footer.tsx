@@ -12,6 +12,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import { useWebsiteSettings } from '../context/SettingsContext';
+import { LanguageSelector } from './LanguageSelector';
 
 export const Footer: React.FC = () => {
   const { settings } = useWebsiteSettings();
@@ -272,7 +273,8 @@ export const Footer: React.FC = () => {
           <p>
             &copy; {new Date().getFullYear()} <strong className="text-white">Apply365</strong>. All rights reserved. <span className="text-[#FF8500]">Services for People.</span>
           </p>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 flex-wrap justify-center sm:justify-end">
+            <LanguageSelector variant="header" className="scale-90" />
             <Link to="/privacy-policy" className="hover:text-white transition-colors">
               Privacy Policy
             </Link>
