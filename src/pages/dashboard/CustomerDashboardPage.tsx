@@ -7,7 +7,8 @@ import { CustomerApplication, ApplicationDocument, CustomerNotification } from '
 import { CustomerInvoice, InvoicePayment } from '../../types/invoices';
 import { DocumentPreviewModal } from '../../components/DocumentPreviewModal';
 import { generateInvoicePDF, generateApplicationSummaryPDF, formatINR } from '../../utils/pdfGenerator';
-import { openRazorpayCheckout, RAZORPAY_CONFIG } from '../../services/razorpayService';
+import { PhonePeQrPaymentCard } from '../../components/PhonePeQrPaymentCard';
+import { getPaymentSubmissions, PaymentSubmission } from '../../services/paymentService';
 import confetti from 'canvas-confetti';
 import { 
   User, 
@@ -38,6 +39,7 @@ import {
   Receipt,
   Download,
   Bell,
+  QrCode,
   Send,
   HelpCircle,
   Copy,
@@ -55,17 +57,11 @@ export const CustomerDashboardPage: React.FC = () => {
   const [loadingApps, setLoadingApps] = useState(true);
   const [previewDoc, setPreviewDoc] = useState<ApplicationDocument | null>(null);
 
-  // Online Checkout Modal State
+  // Online Checkout & Payment Proof State
   const [checkoutInvoice, setCheckoutInvoice] = useState<CustomerInvoice | null>(null);
-  const [checkoutMethod, setCheckoutMethod] = useState<'UPI' | 'Credit/Debit Card' | 'Net Banking'>('UPI');
-  const [checkoutUpiApp, setCheckoutUpiApp] = useState<'gpay' | 'phonepe' | 'paytm' | 'other'>('gpay');
-  const [checkoutBank, setCheckoutBank] = useState('HDFC Bank');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  const [isPaying, setIsPaying] = useState(false);
-  const [payError, setPayError] = useState('');
-  const [paySuccessMsg, setPaySuccessMsg] = useState('');
+  const [activePayApp, setActivePayApp] = useState<CustomerApplication | null>(null);
+  const [resubmitTarget, setResubmitTarget] = useState<PaymentSubmission | null>(null);
+  const [paymentSubmissions, setPaymentSubmissions] = useState<PaymentSubmission[]>([]);
   const [viewReceipt, setViewReceipt] = useState<any | null>(null);
 
   // Profile Edit State
@@ -82,14 +78,22 @@ export const CustomerDashboardPage: React.FC = () => {
     if (!currentUser) return;
     setLoadingApps(true);
     try {
-      const [appsData, invsData, notifsData] = await Promise.all([
+      const [appsData, invsData, notifsData, subsData] = await Promise.all([
         getCustomerApplications(currentUser.id),
         getCustomerInvoices(currentUser.id),
-        getCustomerNotifications(currentUser.id)
+        getCustomerNotifications(currentUser.id),
+        getPaymentSubmissions()
       ]);
       setApplications(appsData);
       setInvoices(invsData);
       setNotifications(notifsData);
+      setPaymentSubmissions(
+        subsData.filter(s => 
+          s.customerId === currentUser.id || 
+          (currentUser.mobile && s.customerMobile === currentUser.mobile) ||
+          (currentUser.email && s.customerEmail === currentUser.email)
+        )
+      );
     } catch (e) {
       console.error('Failed to load customer data:', e);
     } finally {
@@ -163,196 +167,21 @@ export const CustomerDashboardPage: React.FC = () => {
 
   const handleOpenCheckout = (inv: CustomerInvoice) => {
     setCheckoutInvoice(inv);
-    setCheckoutMethod('UPI');
-    setCheckoutUpiApp('gpay');
-    setPayError('');
-    setPaySuccessMsg('');
   };
 
-  const handleConfirmOnlinePayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!checkoutInvoice) return;
-
-    setIsPaying(true);
-    setPayError('');
-    try {
-      const txnRef = `PAY365-${checkoutMethod.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-6)}`;
-      await recordInvoicePayment(checkoutInvoice.id, {
-        invoiceId: checkoutInvoice.id,
-        amount: checkoutInvoice.balanceDue,
-        paymentMethod: checkoutMethod,
-        transactionReference: txnRef,
-        paymentDate: new Date().toISOString(),
-        paymentNotes: `Online checkout completed via ${checkoutMethod} by customer`,
-        recordedBy: `${currentUser?.name || 'Customer'} (Online Portal)`
-      });
-
-      try {
-        confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-      } catch {}
-
-      setPaySuccessMsg(`Payment of ${formatINR(checkoutInvoice.balanceDue)} completed successfully!`);
-      await loadCustomerData();
-      setTimeout(() => {
-        setCheckoutInvoice(null);
-        setPaySuccessMsg('');
-        setActiveTab('payments');
-      }, 1200);
-    } catch (err: any) {
-      setPayError(err.message || 'Payment processing failed. Please try again.');
-    } finally {
-      setIsPaying(false);
-    }
+  const handlePayApplicationFee = (app: CustomerApplication) => {
+    setActivePayApp(app);
   };
 
-  const handleRazorpayPayment = async () => {
-    if (!checkoutInvoice) return;
-
-    setIsPaying(true);
-    setPayError('');
-    setPaySuccessMsg('');
-
+  const handlePaymentSuccess = async (_sub: PaymentSubmission) => {
     try {
-      const resp = await openRazorpayCheckout({
-        amount: checkoutInvoice.balanceDue,
-        invoiceId: checkoutInvoice.invoiceNumber || checkoutInvoice.id,
-        description: `Apply365 Facilitation Fee — ${checkoutInvoice.serviceName}`,
-        customerName: checkoutInvoice.customerName || currentUser?.name || 'Customer',
-        customerEmail: checkoutInvoice.customerEmail || currentUser?.email || 'applyallservices365@gmail.com',
-        customerPhone: checkoutInvoice.customerMobile || currentUser?.mobile || '9121992365',
-        notes: {
-          invoice_id: checkoutInvoice.id,
-          invoice_number: checkoutInvoice.invoiceNumber,
-          customer_id: checkoutInvoice.customerId
-        }
-      });
-
-      const txnRef = resp.razorpay_payment_id;
-
-      await recordInvoicePayment(checkoutInvoice.id, {
-        invoiceId: checkoutInvoice.id,
-        amount: checkoutInvoice.balanceDue,
-        paymentMethod: 'Credit/Debit Card',
-        transactionReference: txnRef,
-        paymentDate: new Date().toISOString(),
-        paymentNotes: `Razorpay Online Payment Verified. Payment ID: ${txnRef}`,
-        recordedBy: `${currentUser?.name || 'Customer'} (Razorpay Gateway)`
-      });
-
-      try {
-        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-      } catch {}
-
-      setPaySuccessMsg(`Payment of ${formatINR(checkoutInvoice.balanceDue)} verified & completed successfully via Razorpay! Transaction ID: ${txnRef}`);
-      await loadCustomerData();
-      setTimeout(() => {
-        setCheckoutInvoice(null);
-        setPaySuccessMsg('');
-        setActiveTab('payments');
-      }, 1600);
-    } catch (err: any) {
-      if (err.message && !err.message.includes('closed by user')) {
-        setPayError(err.message || 'Razorpay payment processing failed.');
-      }
-    } finally {
-      setIsPaying(false);
-    }
-  };
-
-  const handlePayApplicationFee = async (app: CustomerApplication) => {
-    try {
-      const targetFee = app.paymentAmount || 50;
-      const resp = await openRazorpayCheckout({
-        amount: targetFee,
-        invoiceId: app.id,
-        description: `Apply-365 Facilitation Fee — ${app.serviceTitle}`,
-        customerName: app.customerName || currentUser?.name || 'Customer',
-        customerEmail: app.customerEmail || currentUser?.email || 'applyallservices365@gmail.com',
-        customerPhone: app.customerMobile || currentUser?.mobile || '9121992365',
-        notes: {
-          application_id: app.id,
-          service_title: app.serviceTitle
-        }
-      });
-
-      const txnRef = resp.razorpay_payment_id;
-
-      const updatedApp: CustomerApplication = {
-        ...app,
-        paymentStatus: 'payment_completed',
-        paymentAmount: targetFee,
-        paymentTransactionId: txnRef,
-        status: 'application_received',
-        statusHistory: [
-          ...(app.statusHistory || []),
-          {
-            status: 'application_received',
-            title: 'Payment Completed & Application Received',
-            description: `Application facilitation fee of ₹${targetFee} verified via Razorpay (${txnRef}). Application is queued for verification.`,
-            timestamp: new Date().toISOString(),
-            completed: true
-          }
-        ]
-      };
-
-      await saveApplication(updatedApp);
-
-      try {
-        await createInvoice({
-          applicationId: app.id,
-          customerId: app.customerId,
-          customerName: app.customerName,
-          customerEmail: app.customerEmail,
-          customerMobile: app.customerMobile,
-          serviceName: app.serviceTitle,
-          invoiceDate: new Date().toISOString().slice(0, 10),
-          dueDate: new Date().toISOString().slice(0, 10),
-          items: [
-            {
-              id: 'item-1',
-              description: `${app.serviceTitle} — Statutory Facilitation Fee`,
-              quantity: 1,
-              unitPrice: targetFee,
-              total: targetFee
-            }
-          ],
-          subtotal: targetFee,
-          taxAmount: 0,
-          discount: 0,
-          taxRate: 0,
-          totalAmount: targetFee,
-          amountPaid: targetFee,
-          balanceDue: 0,
-          paymentStatus: 'paid',
-          invoiceStatus: 'finalized',
-          payments: [
-            {
-              id: `pay_${Date.now()}`,
-              amount: targetFee,
-              paymentDate: new Date().toISOString().slice(0, 10),
-              paymentMethod: 'Razorpay',
-              transactionReference: txnRef,
-              recordedBy: 'Razorpay Gateway',
-              notes: 'Paid online via Customer Dashboard'
-            }
-          ],
-          notes: 'Apply-365 Service Processing Fee'
-        });
-      } catch (invErr) {
-        console.warn('Auto invoice create warning:', invErr);
-      }
-
-      window.dispatchEvent(new CustomEvent('apply365_data_sync'));
-      try {
-        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
-      } catch {}
-
-      await loadCustomerData();
-    } catch (err: any) {
-      if (err.message && !err.message.includes('closed by user')) {
-        alert(err.message || 'Payment processing failed. Please try again.');
-      }
-    }
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+    } catch {}
+    setActivePayApp(null);
+    setCheckoutInvoice(null);
+    setResubmitTarget(null);
+    await loadCustomerData();
+    setActiveTab('payments');
   };
 
   const underReviewCount = applications.filter((a) => 
@@ -705,9 +534,9 @@ export const CustomerDashboardPage: React.FC = () => {
                                       id: `pay_${app.id}`,
                                       amount: fee,
                                       paymentDate: (app.createdAt || new Date().toISOString()).slice(0, 10),
-                                      paymentMethod: 'razorpay',
-                                      referenceNumber: app.paymentTransactionId || 'Razorpay Verified',
-                                      recordedBy: 'Razorpay Gateway',
+                                      paymentMethod: 'UPI / PhonePe',
+                                      referenceNumber: app.paymentTransactionId || 'UPI Verified',
+                                      recordedBy: 'Admin Verified',
                                       notes: 'Application fee paid online'
                                     }
                                   ],
@@ -754,7 +583,7 @@ export const CustomerDashboardPage: React.FC = () => {
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl">
                         <div>Applicant: <strong className="text-slate-800 block truncate">{app.customerName}</strong></div>
-                        <div>Payment Ref: <strong className="text-[#104A96] font-mono block truncate">{app.paymentTransactionId || (app.formData?._payment?.txnId) || 'Razorpay Verified'}</strong></div>
+                        <div>Payment Ref: <strong className="text-[#104A96] font-mono block truncate">{app.paymentTransactionId || (app.formData?._payment?.txnId) || 'UPI Verified'}</strong></div>
                         <div>Attached Proofs: <strong className="text-emerald-700 block">{app.documents.filter(d => d.status === 'uploaded' || d.fileUrl).length} files attached</strong></div>
                         <div>Mobile: <strong className="text-slate-800 block">{app.customerMobile}</strong></div>
                       </div>
@@ -876,74 +705,267 @@ export const CustomerDashboardPage: React.FC = () => {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Your Payment History & Receipts</h3>
+                <h3 className="text-lg font-bold text-slate-900">Your Payment History & Verification Status</h3>
                 <p className="text-xs sm:text-sm text-slate-500">
-                  Track all confirmed payments, transaction references, and access verified digital payment receipts.
+                  Track your PhonePe & UPI QR payment proofs, admin verification updates, and access verified digital receipts.
                 </p>
               </div>
             </div>
 
-            {customerPayments.length === 0 ? (
+            {/* UPI QR Submissions (Verification Station) */}
+            {paymentSubmissions.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-[#5f259f]" />
+                  <span>Submitted PhonePe & UPI Payments ({paymentSubmissions.length})</span>
+                </h4>
+
+                <div className="space-y-3">
+                  {paymentSubmissions.map((sub) => {
+                    const isPending = sub.verificationStatus === 'PENDING_VERIFICATION';
+                    const isApproved = sub.verificationStatus === 'APPROVED';
+                    const isRejected = sub.verificationStatus === 'REJECTED';
+                    const isResubmit = sub.verificationStatus === 'RESUBMISSION_REQUESTED';
+
+                    return (
+                      <div
+                        key={sub.id}
+                        className={`bg-white rounded-3xl p-5 sm:p-6 border shadow-xs space-y-3.5 transition-all ${
+                          isResubmit
+                            ? 'border-rose-300 ring-2 ring-rose-100'
+                            : isApproved
+                            ? 'border-emerald-200'
+                            : 'border-slate-200/80'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                          <div className="space-y-0.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-bold text-xs text-[#104A96] bg-blue-50 px-2.5 py-0.5 rounded-lg">
+                                {sub.orderId}
+                              </span>
+                              
+                              {isPending && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1 animate-pulse">
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  <span>Pending Admin Verification</span>
+                                </span>
+                              )}
+
+                              {isApproved && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Verified & Approved</span>
+                                </span>
+                              )}
+
+                              {isResubmit && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3 text-rose-600" />
+                                  <span>Action Required: Resubmit Proof</span>
+                                </span>
+                              )}
+
+                              {isRejected && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-800 border border-red-200 flex items-center gap-1">
+                                  <X className="w-3 h-3 text-red-600" />
+                                  <span>Payment Rejected</span>
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="text-base font-bold text-slate-900 mt-1">{sub.serviceName}</h4>
+                          </div>
+
+                          <div className="text-right flex items-center sm:block justify-between">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Amount</span>
+                            <span className="text-2xl font-black text-slate-900">{formatINR(sub.amount)}</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3.5 rounded-2xl">
+                          <div>
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">12-Digit UTR:</span>
+                            <strong className="font-mono text-[#104A96] block truncate">{sub.utrNumber}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Mode:</span>
+                            <strong className="text-slate-800 block">PhonePe / UPI QR</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Submitted At:</span>
+                            <span className="text-slate-700 block truncate">
+                              {new Date(sub.submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Service Access:</span>
+                            <span className={`font-bold block ${isApproved ? 'text-emerald-700' : 'text-amber-600'}`}>
+                              {isApproved ? 'Unlocked & Active' : 'Locked (Verifying)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Admin Remark / Resubmission Box */}
+                        {isResubmit && (
+                          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2">
+                            <div className="flex items-center gap-2 text-rose-800 text-xs font-bold">
+                              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>Admin Remark: {sub.adminNotes || 'Please upload a clear screenshot showing full 12-digit UTR.'}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setResubmitTarget(sub)}
+                              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                              <span>Re-upload Payment Proof & Correct UTR</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {isRejected && sub.rejectionReason && (
+                          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs">
+                            <strong>Rejection Note:</strong> {sub.rejectionReason}
+                          </div>
+                        )}
+
+                        {isApproved && (
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Bank credit confirmed by Admin. Your application is processing.</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const invPdf = generateInvoicePDF({
+                                  id: `inv_${sub.id}`,
+                                  invoiceNumber: `INV-${sub.orderId.replace('APP365-', '')}`,
+                                  applicationId: sub.applicationId,
+                                  customerId: sub.customerId,
+                                  customerName: sub.customerName,
+                                  customerEmail: sub.customerEmail,
+                                  customerMobile: sub.customerMobile,
+                                  serviceName: sub.serviceName || sub.serviceTitle || 'Statutory Service',
+                                  invoiceDate: sub.submittedAt.slice(0, 10),
+                                  dueDate: sub.submittedAt.slice(0, 10),
+                                  items: [
+                                    {
+                                      id: 'item-1',
+                                      description: `${sub.serviceName} — Facilitation Fee`,
+                                      quantity: 1,
+                                      unitPrice: sub.amount,
+                                      total: sub.amount
+                                    }
+                                  ],
+                                  subtotal: sub.amount,
+                                  taxAmount: 0,
+                                  discount: 0,
+                                  taxRate: 0,
+                                  totalAmount: sub.amount,
+                                  amountPaid: sub.amount,
+                                  balanceDue: 0,
+                                  paymentStatus: 'paid',
+                                  invoiceStatus: 'finalized',
+                                  payments: [
+                                    {
+                                      id: `pay_${sub.id}`,
+                                      amount: sub.amount,
+                                      paymentDate: sub.submittedAt.slice(0, 10),
+                                      paymentMethod: 'PhonePe / UPI QR',
+                                      transactionReference: sub.utrNumber,
+                                      recordedBy: 'Admin Verified',
+                                      notes: 'Payment verified and confirmed'
+                                    }
+                                  ],
+                                  notes: `Official payment receipt for ${sub.orderId}.`
+                                });
+                                invPdf.save(`Receipt_${sub.orderId}.pdf`);
+                              }}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Download Stamped Receipt</span>
+                            </button>
+                          </div>
+                        )}
+
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Confirmed Invoice Payments */}
+            {customerPayments.length === 0 && paymentSubmissions.length === 0 ? (
               <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-3">
                 <CreditCard className="w-12 h-12 text-slate-300 mx-auto" />
                 <h4 className="text-base font-bold text-slate-800">No Payments Recorded Yet</h4>
                 <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
-                  When you complete a payment for an issued facilitation invoice, your transaction receipts will be archived here.
+                  When you complete a payment for an issued facilitation invoice or service application, your transaction receipts will be archived here.
                 </p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {customerPayments.map((p) => {
-                  const pDate = new Date(p.paymentDate);
-                  const formattedDate = pDate.toLocaleDateString('en-IN', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric'
-                  });
+            ) : customerPayments.length > 0 ? (
+              <div className="space-y-4 pt-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-[#104A96]" />
+                  <span>Confirmed Invoices & Settled Transactions</span>
+                </h4>
 
-                  return (
-                    <div
-                      key={p.id}
-                      className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-xs text-[#104A96] bg-blue-50 px-2.5 py-0.5 rounded-lg">
-                            {p.invoiceNumber}
-                          </span>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Payment Verified</span>
-                          </span>
+                <div className="space-y-3">
+                  {customerPayments.map((p) => {
+                    const pDate = new Date(p.paymentDate);
+                    const formattedDate = pDate.toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    });
+
+                    return (
+                      <div
+                        key={p.id}
+                        className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-xs text-[#104A96] bg-blue-50 px-2.5 py-0.5 rounded-lg">
+                              {p.invoiceNumber}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Payment Verified</span>
+                            </span>
+                          </div>
+                          <h4 className="text-base font-bold text-slate-900">{p.serviceName}</h4>
+                          <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
+                            <span>Date: {formattedDate}</span>
+                            <span>Method: <strong className="text-slate-700">{p.paymentMethod}</strong></span>
+                            <span>Ref: <strong className="font-mono text-slate-700">{p.transactionReference || 'N/A'}</strong></span>
+                          </div>
                         </div>
-                        <h4 className="text-base font-bold text-slate-900">{p.serviceName}</h4>
-                        <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
-                          <span>Date: {formattedDate}</span>
-                          <span>Method: <strong className="text-slate-700">{p.paymentMethod}</strong></span>
-                          <span>Ref: <strong className="font-mono text-slate-700">{p.transactionReference || 'N/A'}</strong></span>
+
+                        <div className="flex items-center gap-4 self-end sm:self-center">
+                          <div className="text-right">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Amount Paid</span>
+                            <span className="text-xl font-black text-emerald-700">{formatINR(p.amount)}</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setViewReceipt(p)}
+                            className="px-3.5 py-2 rounded-xl border border-slate-200 hover:border-[#104A96] text-slate-700 hover:text-[#104A96] text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>Receipt</span>
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-4 self-end sm:self-center">
-                        <div className="text-right">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Amount Paid</span>
-                          <span className="text-xl font-black text-emerald-700">{formatINR(p.amount)}</span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setViewReceipt(p)}
-                          className="px-3.5 py-2 rounded-xl border border-slate-200 hover:border-[#104A96] text-slate-700 hover:text-[#104A96] text-xs font-bold transition-colors flex items-center gap-1.5"
-                        >
-                          <Receipt className="w-3.5 h-3.5" />
-                          <span>Receipt</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -1138,250 +1160,44 @@ export const CustomerDashboardPage: React.FC = () => {
         />
       )}
 
-      {/* Online Payment Checkout Modal */}
-      {checkoutInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] overflow-y-auto">
-            
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Secure Online Checkout</h3>
-                  <p className="text-[11px] text-slate-500">Apply365 Verified Payment Gateway</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCheckoutInvoice(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* PhonePe / Manual UPI QR Payment & Resubmission Modal */}
+      {(checkoutInvoice || activePayApp || resubmitTarget) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
+          <div className="relative w-full max-w-lg my-8">
+            <button
+              type="button"
+              onClick={() => {
+                setCheckoutInvoice(null);
+                setActivePayApp(null);
+                setResubmitTarget(null);
+              }}
+              className="absolute -top-3 -right-3 z-20 w-9 h-9 rounded-full bg-white shadow-lg text-slate-700 hover:text-slate-950 flex items-center justify-center border border-slate-200 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-            {/* Bill Summary Banner */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 p-4 rounded-2xl flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Invoice #{checkoutInvoice.invoiceNumber}</span>
-                <h4 className="text-sm font-extrabold text-slate-900 truncate max-w-[200px]">{checkoutInvoice.serviceName}</h4>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Amount Due</span>
-                <span className="text-2xl font-black text-[#104A96]">{formatINR(checkoutInvoice.balanceDue)}</span>
-              </div>
-            </div>
-
-            {payError && (
-              <div className="p-3 rounded-xl bg-red-50 text-red-700 text-xs font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{payError}</span>
-              </div>
-            )}
-
-            {paySuccessMsg && (
-              <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{paySuccessMsg}</span>
-              </div>
-            )}
-
-            {/* Primary Razorpay Gateway Card */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#0F3567] to-[#104A96] text-white shadow-lg space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center font-black text-amber-300 text-xs">
-                    R
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold block leading-tight">Razorpay Secure Checkout</span>
-                    <span className="text-[10px] text-blue-200">Instant UPI, GPay, PhonePe, Cards & Net Banking</span>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold uppercase tracking-wider">
-                  Official Gateway
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <div className="text-[11px] text-blue-100/90 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-300 shrink-0" />
-                  <span>256-Bit Bank Grade Encryption</span>
-                </div>
-                <div className="text-[10px] font-mono text-blue-200 bg-white/10 px-2 py-0.5 rounded">
-                  Test Keys: Active
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRazorpayPayment}
-                disabled={isPaying}
-                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#FF8500] to-[#FF9F33] hover:from-[#e67700] hover:to-[#ff921a] text-white text-sm font-extrabold shadow-md transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isPaying ? (
-                  <span>Connecting to Razorpay...</span>
-                ) : (
-                  <>
-                    <CreditCard className="w-4 h-4" />
-                    <span>Pay with Razorpay ({formatINR(checkoutInvoice.balanceDue)})</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-200"></div>
-              <span className="flex-shrink mx-3 text-slate-400 text-[10px] font-bold uppercase tracking-wider">Or Manual Transfer</span>
-              <div className="flex-grow border-t border-slate-200"></div>
-            </div>
-
-            {/* Payment Method Selector */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Select Payment Mode
-              </label>
-
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'UPI', label: 'UPI / QR', icon: Sparkles },
-                  { id: 'Credit/Debit Card', label: 'Debit / Card', icon: CreditCard },
-                  { id: 'Net Banking', label: 'Net Banking', icon: Landmark }
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setCheckoutMethod(m.id as any)}
-                    className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all ${
-                      checkoutMethod === m.id
-                        ? 'border-[#104A96] bg-blue-50/50 text-[#104A96] ring-2 ring-[#104A96]/20'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                    }`}
-                  >
-                    <m.icon className="w-4 h-4" />
-                    <span>{m.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Dynamic Method Form */}
-            {checkoutMethod === 'UPI' && (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4 text-center">
-                <span className="text-xs font-bold text-slate-700 block">Instant Scan & Pay via any UPI App</span>
-                
-                {/* QR Code Graphic Mock */}
-                <div className="w-36 h-36 bg-white p-2 rounded-2xl border-2 border-slate-900 mx-auto shadow-inner flex flex-col items-center justify-center">
-                  <div className="w-full h-full bg-slate-900 rounded-lg flex items-center justify-center p-2">
-                    <div className="grid grid-cols-4 gap-1 w-full h-full p-1 bg-white rounded">
-                      {Array.from({ length: 16 }).map((_, i) => (
-                        <div key={i} className={`rounded-xs ${i % 3 === 0 || i % 5 === 0 ? 'bg-slate-900' : 'bg-transparent'}`} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-xs font-mono font-bold text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
-                    apply365@icici
-                  </span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded font-bold">
-                    Zero Surcharge
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-slate-500">
-                  Supported apps: Google Pay, PhonePe, Paytm, BHIM, Cred, and all Indian banking UPI apps.
-                </p>
-              </div>
-            )}
-
-            {checkoutMethod === 'Credit/Debit Card' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Card Number</label>
-                  <input
-                    type="text"
-                    maxLength={19}
-                    placeholder="4532 •••• •••• 8921"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:border-[#104A96]"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Expiry (MM/YY)</label>
-                    <input
-                      type="text"
-                      maxLength={5}
-                      placeholder="12/28"
-                      value={cardExpiry}
-                      onChange={(e) => setCardExpiry(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:border-[#104A96]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">CVV</label>
-                    <input
-                      type="password"
-                      maxLength={4}
-                      placeholder="•••"
-                      value={cardCvv}
-                      onChange={(e) => setCardCvv(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:border-[#104A96]"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {checkoutMethod === 'Net Banking' && (
-              <div className="space-y-3">
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Select Bank</label>
-                <select
-                  value={checkoutBank}
-                  onChange={(e) => setCheckoutBank(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:border-[#104A96]"
-                >
-                  <option value="HDFC Bank">HDFC Bank</option>
-                  <option value="State Bank of India">State Bank of India (SBI)</option>
-                  <option value="ICICI Bank">ICICI Bank</option>
-                  <option value="Axis Bank">Axis Bank</option>
-                  <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
-                  <option value="Punjab National Bank">Punjab National Bank (PNB)</option>
-                </select>
-              </div>
-            )}
-
-            {/* Action Bar */}
-            <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setCheckoutInvoice(null)}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmOnlinePayment}
-                disabled={isPaying}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {isPaying ? (
-                  <span>Processing Payment...</span>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Authorize & Pay {formatINR(checkoutInvoice.balanceDue)}</span>
-                  </>
-                )}
-              </button>
-            </div>
-
+            <PhonePeQrPaymentCard
+              amount={
+                activePayApp ? (activePayApp.paymentAmount || 50) :
+                checkoutInvoice ? checkoutInvoice.balanceDue :
+                resubmitTarget ? resubmitTarget.amount : 50
+              }
+              orderId={
+                activePayApp ? activePayApp.id :
+                checkoutInvoice ? checkoutInvoice.invoiceNumber :
+                resubmitTarget ? resubmitTarget.orderId : 'APPLY-365'
+              }
+              applicationId={activePayApp?.id || resubmitTarget?.applicationId}
+              serviceName={
+                activePayApp ? activePayApp.serviceTitle :
+                checkoutInvoice ? checkoutInvoice.serviceName :
+                resubmitTarget?.serviceName || 'Statutory Application'
+              }
+              customerName={currentUser?.name || 'Customer'}
+              customerMobile={currentUser?.mobile || ''}
+              customerEmail={currentUser?.email || ''}
+              onPaymentSuccess={handlePaymentSuccess}
+            />
           </div>
         </div>
       )}

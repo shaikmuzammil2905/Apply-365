@@ -539,7 +539,7 @@ export const Navbar: React.FC = () => {
                 <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
                   <CreditCard className="w-4 h-4" />
                 </div>
-                <span>Pay Online (Razorpay)</span>
+                <span>Pay Online (UPI / QR)</span>
               </div>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#104A96] border border-blue-200 font-mono">
                 Instant UPI / Cards

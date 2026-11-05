@@ -498,8 +498,8 @@ export const AdminApplicationsPage: React.FC = () => {
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>Paid: ₹{app.paymentAmount || 50}</span>
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400 block truncate max-w-[120px] mt-0.5" title={app.paymentTransactionId || 'Razorpay Verified'}>
-                            {app.paymentTransactionId || (app.formData?._payment?.txnId) || 'pay_verified'}
+                          <span className="text-[10px] font-mono text-slate-400 block truncate max-w-[120px] mt-0.5" title={app.paymentTransactionId || 'UPI Verified'}>
+                            {app.paymentTransactionId || (app.formData?._payment?.txnId) || 'UPI Verified'}
                           </span>
                         </div>
                       ) : (
@@ -668,9 +668,9 @@ export const AdminApplicationsPage: React.FC = () => {
                               id: `pay_${selectedApp.id}`,
                               amount: feeAmt,
                               paymentDate: (selectedApp.createdAt || new Date().toISOString()).slice(0, 10),
-                              paymentMethod: 'razorpay',
+                              paymentMethod: 'UPI',
                               referenceNumber: selectedApp.paymentTransactionId || 'Verified',
-                              recordedBy: 'Razorpay Gateway',
+                              recordedBy: 'PhonePe UPI QR Verification',
                               notes: 'Mandatory Application Fee'
                             }
                           ],
@@ -705,16 +705,16 @@ export const AdminApplicationsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Razorpay Txn ID</span>
-                    <span className="font-mono font-bold text-[#104A96] mt-0.5 block truncate" title={selectedApp.paymentTransactionId || 'pay_verified'}>
-                      {selectedApp.paymentTransactionId || (selectedApp.formData?._payment?.txnId) || 'pay_verified'}
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">UPI UTR / Txn Ref</span>
+                    <span className="font-mono font-bold text-[#104A96] mt-0.5 block truncate" title={selectedApp.paymentTransactionId || 'UPI Verified'}>
+                      {selectedApp.paymentTransactionId || (selectedApp.formData?._payment?.txnId) || 'UPI Verified'}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-500 block">Payment Method</span>
                     <span className="font-semibold text-slate-800 mt-0.5 block">
-                      Razorpay Checkout (UPI/Cards)
+                      PhonePe / UPI QR Payment
                     </span>
                   </div>
                 </div>

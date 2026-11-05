@@ -3,7 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { getInvoices, recordInvoicePayment } from '../services/dataSyncService';
 import { CustomerInvoice } from '../types/invoices';
-import { openRazorpayCheckout } from '../services/razorpayService';
+import { PhonePeQrPaymentCard } from '../components/PhonePeQrPaymentCard';
 import { generateInvoicePDF, formatINR } from '../utils/pdfGenerator';
 import confetti from 'canvas-confetti';
 import { 
@@ -19,7 +19,8 @@ import {
   ArrowRight,
   ExternalLink,
   MessageSquare,
-  Lock
+  Lock,
+  QrCode
 } from 'lucide-react';
 
 export const PublicPaymentPage: React.FC = () => {
@@ -33,7 +34,6 @@ export const PublicPaymentPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   
-  const [isPaying, setIsPaying] = useState(false);
   const [payError, setPayError] = useState('');
   const [paySuccessMsg, setPaySuccessMsg] = useState('');
 
@@ -89,58 +89,21 @@ export const PublicPaymentPage: React.FC = () => {
     });
   };
 
-  const handleRazorpayPay = async () => {
-    if (!invoice || invoice.balanceDue <= 0) return;
-
-    setIsPaying(true);
-    setPayError('');
-    setPaySuccessMsg('');
-
+  const handlePaymentSubmitted = async (submission: any) => {
+    if (!invoice) return;
     try {
-      const resp = await openRazorpayCheckout({
-        amount: invoice.balanceDue,
-        invoiceId: invoice.invoiceNumber,
-        description: `Apply365 Facilitation: ${invoice.serviceName}`,
-        customerName: invoice.customerName,
-        customerEmail: invoice.customerEmail || 'applyallservices365@gmail.com',
-        customerPhone: invoice.customerMobile || '9121992365',
-        notes: {
-          invoice_id: invoice.id,
-          invoice_number: invoice.invoiceNumber,
-          application_id: invoice.applicationId || ''
-        }
-      });
+      confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+    } catch {}
 
-      const txnRef = resp.razorpay_payment_id;
+    setPaySuccessMsg(
+      `Payment proof submitted successfully! UTR: ${submission.utrNumber}. Your payment is queued for admin verification.`
+    );
 
-      await recordInvoicePayment(invoice.id, {
-        invoiceId: invoice.id,
-        amount: invoice.balanceDue,
-        paymentMethod: 'Credit/Debit Card',
-        transactionReference: txnRef,
-        paymentDate: new Date().toISOString(),
-        paymentNotes: `Razorpay Online Payment Verified: ${txnRef}`,
-        recordedBy: `${invoice.customerName} (Razorpay Quick Pay)`
-      });
-
-      try {
-        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-      } catch {}
-
-      setPaySuccessMsg(`Payment of ${formatINR(invoice.balanceDue)} verified & completed successfully via Razorpay!`);
-      
-      // Reload updated invoice
-      const updatedList = await getInvoices();
-      const updatedInv = updatedList.find(i => i.id === invoice.id);
-      if (updatedInv) {
-        setInvoice(updatedInv);
-      }
-    } catch (err: any) {
-      if (err.message && !err.message.includes('closed by user')) {
-        setPayError(err.message || 'Razorpay payment processing failed.');
-      }
-    } finally {
-      setIsPaying(false);
+    // Refresh invoice list
+    const updatedList = await getInvoices();
+    const updatedInv = updatedList.find(i => i.id === invoice.id);
+    if (updatedInv) {
+      setInvoice(updatedInv);
     }
   };
 
@@ -165,21 +128,21 @@ export const PublicPaymentPage: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Verified Razorpay Payment Gateway</span>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-[#5f259f] text-xs font-bold uppercase tracking-wider mb-2">
+                <QrCode className="w-3.5 h-3.5 text-[#5f259f]" />
+                <span>Instant PhonePe & UPI QR Payment</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 Quick Online Invoice Payment
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl">
-                Pay your statutory documentation and facilitation fees instantly via UPI, QR, Debit/Credit Card, or Net Banking.
+                Pay your statutory documentation and facilitation fees securely using PhonePe, Google Pay, Paytm, or any UPI app.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono bg-blue-50 text-[#104A96] px-2.5 py-1 rounded-lg border border-blue-200 font-bold">
-                256-Bit Encrypted
+              <span className="text-[10px] font-mono bg-purple-50 text-[#5f259f] px-2.5 py-1 rounded-lg border border-purple-200 font-bold">
+                Direct UPI Settlement
               </span>
             </div>
           </div>
@@ -204,7 +167,7 @@ export const PublicPaymentPage: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 shrink-0"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 shrink-0 cursor-pointer"
             >
               {isLoading ? 'Searching...' : 'Find Invoice'}
             </button>
@@ -249,7 +212,7 @@ export const PublicPaymentPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
-                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-slate-500" />
                   <span>PDF</span>
@@ -295,41 +258,17 @@ export const PublicPaymentPage: React.FC = () => {
 
             {/* Pay or Paid Action Banner */}
             {invoice.balanceDue > 0 ? (
-              <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0F3567] to-[#104A96] text-white shadow-lg space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-blue-200 block">
-                      Outstanding Balance Payable
-                    </span>
-                    <span className="text-3xl font-black text-amber-300 font-mono">
-                      {formatINR(invoice.balanceDue)}
-                    </span>
-                  </div>
-                  <div className="text-xs text-blue-100 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-300" />
-                    <span>Instant Settlement via Razorpay</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleRazorpayPay}
-                  disabled={isPaying}
-                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-[#FF8500] to-[#FF9F33] hover:from-[#e67700] hover:to-[#ff921a] text-white text-base font-extrabold shadow-md transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {isPaying ? (
-                    <span>Opening Razorpay Secure Gateway...</span>
-                  ) : (
-                    <>
-                      <CreditCard className="w-5 h-5" />
-                      <span>Pay {formatINR(invoice.balanceDue)} with Razorpay</span>
-                    </>
-                  )}
-                </button>
-
-                <p className="text-[11px] text-blue-200 text-center">
-                  Supports Google Pay, PhonePe, Paytm, BHIM, all Bank Cards & Net Banking.
-                </p>
+              <div className="pt-2">
+                <PhonePeQrPaymentCard
+                  amount={invoice.balanceDue}
+                  orderId={invoice.invoiceNumber}
+                  applicationId={invoice.applicationId}
+                  serviceName={invoice.serviceName}
+                  customerName={invoice.customerName}
+                  customerMobile={invoice.customerMobile}
+                  customerEmail={invoice.customerEmail}
+                  onPaymentSuccess={handlePaymentSubmitted}
+                />
               </div>
             ) : (
               <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-3">
@@ -345,7 +284,7 @@ export const PublicPaymentPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md inline-flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md inline-flex items-center gap-2 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download Stamped Receipt PDF</span>

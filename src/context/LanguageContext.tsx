@@ -114,7 +114,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'pay.smsUpdates': 'SMS & WhatsApp Updates',
     'pay.total': 'Total Amount Payable',
     'pay.button': 'Pay ₹50 & Complete Application',
-    'pay.secureNotice': 'Secured by Razorpay • UPI, Cards, Net Banking & Wallets Accepted',
+    'pay.secureNotice': 'Scan & Pay via PhonePe, GPay, Paytm • Verified UPI Settlement',
     'pay.pendingNotice': 'Your application is securely saved. Please complete the ₹50 fee to submit for officer review.',
 
     // Success Step
@@ -250,7 +250,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'pay.smsUpdates': 'SMS & WhatsApp అప్‌డేట్‌లు',
     'pay.total': 'మొత్తం చెల్లించవలసిన మొత్తం',
     'pay.button': '₹50 చెల్లించి దరఖాస్తును పూర్తి చేయండి',
-    'pay.secureNotice': 'Razorpay ద్వారా సురక్షితం • UPI, కార్డ్‌లు, నెట్ బ్యాంకింగ్ ఆమోదించబడతాయి',
+    'pay.secureNotice': 'PhonePe, GPay, Paytm ద్వారా స్కాన్ & చెల్లించండి • ధృవీకరించబడిన UPI సెటిల్మెంట్',
     'pay.pendingNotice': 'మీ దరఖాస్తు సురక్షితంగా సేవ్ చేయబడింది. అధికారుల సమీక్ష కోసం ₹50 రుసుమును పూర్తి చేయండి.',
 
     // Success Step
@@ -386,7 +386,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'pay.smsUpdates': 'एसएमएस और व्हाट्सएप अपडेट',
     'pay.total': 'कुल देय राशि',
     'pay.button': '₹50 का भुगतान करें और आवेदन पूरा करें',
-    'pay.secureNotice': 'Razorpay द्वारा सुरक्षित • UPI, कार्ड, नेट बैंकिंग और वॉलेट स्वीकार्य',
+    'pay.secureNotice': 'PhonePe, GPay, Paytm द्वारा स्कैन और भुगतान करें • सत्यापित UPI भुगतान',
     'pay.pendingNotice': 'आपका आवेदन सुरक्षित रूप से सहेज लिया गया है। समीक्षा हेतु भेजने के लिए ₹50 का भुगतान पूरा करें।',
 
     // Success Step

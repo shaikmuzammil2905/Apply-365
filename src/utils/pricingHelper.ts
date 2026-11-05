@@ -124,3 +124,4 @@ export function getStartingPrice(service: ServiceDetail): { amount: number; isFr
   const defAmt = (service.servicePrice ?? 50) + (service.additionalFee ?? 0);
   return { amount: defAmt, isFree: defAmt === 0, formatted: defAmt === 0 ? 'Free' : `₹${defAmt}` };
 }
+

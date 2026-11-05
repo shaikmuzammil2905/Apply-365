@@ -332,7 +332,7 @@ export const AdminInvoicesPage: React.FC = () => {
     const phone = invoice.customerMobile.replace(/[^0-9]/g, '');
     const cleanPhone = phone.startsWith('91') ? phone : `91${phone}`;
     const message = encodeURIComponent(
-      `Hello ${invoice.customerName},\n\nYour official Apply365 invoice is ready.\n\nInvoice No: ${invoice.invoiceNumber}\nService: ${invoice.serviceName}\nTotal Amount: ${formatINR(invoice.totalAmount)}\nAmount Paid: ${formatINR(invoice.amountPaid)}\nBalance Due: ${formatINR(invoice.balanceDue)}\nStatus: ${invoice.paymentStatus.toUpperCase()}\n\n💳 Pay Instantly Online via Razorpay:\nhttps://apply-365.vercel.app/pay/${invoice.invoiceNumber}\n\nOr login to your customer portal:\nhttps://apply-365.vercel.app/dashboard\n\nThank you for choosing Apply365!`
+      `Hello ${invoice.customerName},\n\nYour official Apply365 invoice is ready.\n\nInvoice No: ${invoice.invoiceNumber}\nService: ${invoice.serviceName}\nTotal Amount: ${formatINR(invoice.totalAmount)}\nAmount Paid: ${formatINR(invoice.amountPaid)}\nBalance Due: ${formatINR(invoice.balanceDue)}\nStatus: ${invoice.paymentStatus.toUpperCase()}\n\n💳 Pay Online via PhonePe / UPI QR:\nhttps://apply-365.vercel.app/pay/${invoice.invoiceNumber}\n\nOr login to your customer portal:\nhttps://apply-365.vercel.app/dashboard\n\nThank you for choosing Apply365!`
     );
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
   };

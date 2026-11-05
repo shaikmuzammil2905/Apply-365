@@ -20,7 +20,7 @@ export interface InvoicePayment {
   id: string;
   invoiceId?: string;
   amount: number;
-  paymentMethod: 'UPI' | 'Bank Transfer' | 'Cash' | 'Credit/Debit Card' | 'Net Banking' | 'Razorpay' | 'Other' | string;
+  paymentMethod: 'UPI' | 'PhonePe QR' | 'Bank Transfer' | 'Cash' | 'Credit/Debit Card' | 'Net Banking' | 'Other' | string;
   transactionReference?: string;
   referenceNumber?: string;
   paymentDate: string;

@@ -129,13 +129,12 @@ export interface WebsiteSettings {
   applicationFee?: number;
   requirePaymentBeforeApply?: boolean;
   paymentGateway?: {
-    provider: 'razorpay';
-    keyId: string;
-    keySecret?: string;
+    provider: 'manual_upi' | string;
+    upiId?: string;
+    beneficiaryName?: string;
+    qrImageUrl?: string;
     isEnabled: boolean;
-    isTestMode: boolean;
-    merchantName?: string;
-    themeColor?: string;
+    instructions?: string;
   };
   updatedAt: string;
 }

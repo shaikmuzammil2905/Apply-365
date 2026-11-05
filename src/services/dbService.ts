@@ -137,6 +137,10 @@ function saveFallbackApps(apps: CustomerApplication[]): void {
   }
 }
 
+export function getStoredApplications(): CustomerApplication[] {
+  return getFallbackApps();
+}
+
 export async function saveApplication(app: CustomerApplication): Promise<void> {
   // Always update in IndexedDB first
   try {

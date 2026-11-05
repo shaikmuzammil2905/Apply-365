@@ -28,9 +28,11 @@ import {
   Trash2,
   Globe,
   CreditCard,
-  Key
+  Key,
+  QrCode,
+  Upload
 } from 'lucide-react';
-import { openRazorpayCheckout, RAZORPAY_CONFIG } from '../../services/razorpayService';
+import { getPaymentSettings, savePaymentSettings, DEFAULT_PAYMENT_SETTINGS, PaymentSettings as UPIPaymentSettings } from '../../services/paymentService';
 
 const DAYS_OF_WEEK: Array<{ key: keyof Omit<BusinessHoursConfig, 'timezone' | 'isTemporarilyClosed' | 'temporaryClosureReason' | 'specialHolidayNote'>; label: string }> = [
   { key: 'monday', label: 'Monday' },
@@ -51,10 +53,8 @@ export const AdminSettingsPage: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
 
-  // Razorpay Gateway Settings
-  const [showSecret, setShowSecret] = useState(false);
-  const [isTestingRazorpay, setIsTestingRazorpay] = useState(false);
-  const [razorpayTestStatus, setRazorpayTestStatus] = useState<{ success: boolean; msg: string } | null>(null);
+  // UPI & PhonePe Payment Settings
+  const [upiSettings, setUpiSettings] = useState<UPIPaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
 
   // Logo upload state
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
@@ -76,6 +76,7 @@ export const AdminSettingsPage: React.FC = () => {
 
   useEffect(() => {
     getWebsiteSettings().then(setSettings);
+    getPaymentSettings().then(setUpiSettings);
     checkSupabase();
     loadAppStats();
   }, []);
@@ -104,37 +105,6 @@ export const AdminSettingsPage: React.FC = () => {
     setIsTestingSupabase(false);
   };
 
-  const handleTestRazorpay = async () => {
-    setIsTestingRazorpay(true);
-    setRazorpayTestStatus(null);
-    try {
-      const resp = await openRazorpayCheckout({
-        amount: 10,
-        description: 'Apply365 Gateway Verification Test',
-        customerName: currentAdmin?.fullName || 'Super Administrator',
-        customerEmail: 'applyallservices365@gmail.com',
-        customerPhone: '9121992365',
-        notes: {
-          test_type: 'Admin Gateway Test'
-        }
-      }, settings?.paymentGateway?.keyId);
-
-      setRazorpayTestStatus({
-        success: true,
-        msg: `Razorpay test successful! Payment ID: ${resp.razorpay_payment_id}`
-      });
-    } catch (err: any) {
-      if (err.message && !err.message.includes('closed by user')) {
-        setRazorpayTestStatus({
-          success: false,
-          msg: err.message || 'Razorpay test checkout failed.'
-        });
-      }
-    } finally {
-      setIsTestingRazorpay(false);
-    }
-  };
-
   const handleSaveSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!settings) return;
@@ -142,7 +112,10 @@ export const AdminSettingsPage: React.FC = () => {
     setIsSaving(true);
     setSaveError('');
     try {
-      await saveWebsiteSettings(settings);
+      await Promise.all([
+        saveWebsiteSettings(settings),
+        savePaymentSettings(upiSettings)
+      ]);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -391,8 +364,8 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
-          <CreditCard className="w-4 h-4" />
-          <span>Payment Gateway (Razorpay)</span>
+          <QrCode className="w-4 h-4" />
+          <span>PhonePe & UPI Settings</span>
         </button>
 
         <button
@@ -609,7 +582,7 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
       )}
 
       {/* ========================================================================= */}
-      {/* TAB: RAZORPAY PAYMENT GATEWAY SETTINGS                                    */}
+      {/* TAB: PHONEPE & MANUAL UPI PAYMENT CONFIGURATION                           */}
       {/* ========================================================================= */}
       {activeTab === 'payments' && (
         <div className="space-y-6 animate-in fade-in duration-200">
@@ -633,7 +606,7 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
               <span className="text-2xl font-black text-emerald-600">
                 {appStats.totalPaid}
               </span>
-              <p className="text-[11px] text-slate-500 font-medium">Successfully processed with Razorpay</p>
+              <p className="text-[11px] text-slate-500 font-medium">Successfully verified and unlocked</p>
             </div>
 
             <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-1">
@@ -672,7 +645,7 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  Configure the mandatory facilitation fee customers must pay via Razorpay before unlocking and submitting applications.
+                  Configure the mandatory facilitation fee customers must pay via PhonePe / UPI QR before unlocking and submitting applications.
                 </p>
               </div>
 
@@ -745,7 +718,7 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
                       Enforce Mandatory Payment Before Submission
                     </h4>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      When enabled, customer cannot view or submit the application form until ₹{settings.applicationFee || 50} payment is verified by Razorpay.
+                      When enabled, customer cannot view or submit the application form until ₹{settings.applicationFee || 50} payment proof is verified by Admin.
                     </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
@@ -778,161 +751,146 @@ CREATE POLICY "Anon all settings" ON public.website_settings FOR ALL USING (true
             </div>
           </div>
 
-          {/* RAZORPAY API CREDENTIALS CARD */}
+          {/* PHONEPE QR & UPI SETTINGS CARD */}
           <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-[#104A96]" />
-                  <h3 className="text-base font-extrabold text-slate-900">Razorpay API Gateway Credentials</h3>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
-                    Configured & Active
+                  <QrCode className="w-5 h-5 text-[#5f259f]" />
+                  <h3 className="text-base font-extrabold text-slate-900">PhonePe & UPI QR Master Configuration</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-100 text-[#5f259f] text-[10px] font-bold uppercase tracking-wider">
+                    Official Active Gateway
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  Manage Razorpay API credentials for collecting online customer invoice and facilitation payments.
+                  Manage PhonePe QR image asset, default UPI ID, beneficiary name, and direct settlements.
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleTestRazorpay}
-                  disabled={isTestingRazorpay}
-                  className="px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#104A96] text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
+                  onClick={handleSaveSettings}
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-xl bg-[#5f259f] hover:bg-[#4a1c7d] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>{isTestingRazorpay ? 'Opening Gateway...' : 'Test Razorpay Modal (₹10)'}</span>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSaving ? 'Saving...' : 'Save UPI Settings'}</span>
                 </button>
               </div>
             </div>
 
-            {razorpayTestStatus && (
-              <div className={`p-4 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in ${
-                razorpayTestStatus.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-              }`}>
-                {razorpayTestStatus.success ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" /> : <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />}
-                <span>{razorpayTestStatus.msg}</span>
-              </div>
-            )}
-
-            {/* Gateway Key Configuration */}
+            {/* UPI Settings Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Razorpay Key ID (Test / Live) <span className="text-red-500">*</span>
+                  UPI ID (VPA) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
                     type="text"
-                    value={settings.paymentGateway?.keyId || RAZORPAY_CONFIG.keyId}
-                    onChange={(e) => setSettings({
-                      ...settings,
-                      paymentGateway: {
-                        ...(settings.paymentGateway || {
-                          provider: 'razorpay' as const,
-                          keyId: RAZORPAY_CONFIG.keyId,
-                          keySecret: RAZORPAY_CONFIG.keySecret,
-                          isEnabled: true,
-                          isTestMode: true,
-                          merchantName: 'Apply365 — Services for People',
-                          themeColor: '#104A96'
-                        }),
-                        keyId: e.target.value
-                      }
-                    })}
-                    placeholder="rzp_test_..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#104A96] text-slate-800 bg-white"
+                    value={upiSettings.upiId}
+                    onChange={(e) => setUpiSettings({ ...upiSettings, upiId: e.target.value.trim() })}
+                    placeholder="9346801736@ybl"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#5f259f] text-slate-900 bg-white"
                   />
-                  <div className="absolute right-3 top-2.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
-                    Live Active
+                  <div className="absolute right-3 top-2.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-purple-50 text-[#5f259f]">
+                    PhonePe YBL
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Client-side public key used to initialize Razorpay Standard Checkout in customer browsers.
+                  Initial UPI ID: 9346801736@ybl. Displayed to customers for instant copy & payment.
                 </p>
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Razorpay Key Secret <span className="text-red-500">*</span>
+                  Beneficiary / Account Holder Name <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <input
-                    type={showSecret ? 'text' : 'password'}
-                    value={settings.paymentGateway?.keySecret || RAZORPAY_CONFIG.keySecret}
-                    onChange={(e) => setSettings({
-                      ...settings,
-                      paymentGateway: {
-                        ...(settings.paymentGateway || {
-                          provider: 'razorpay' as const,
-                          keyId: RAZORPAY_CONFIG.keyId,
-                          keySecret: RAZORPAY_CONFIG.keySecret,
-                          isEnabled: true,
-                          isTestMode: true,
-                          merchantName: 'Apply365 — Services for People',
-                          themeColor: '#104A96'
-                        }),
-                        keySecret: e.target.value
-                      }
-                    })}
-                    placeholder="Secret Key"
-                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#104A96] text-slate-800 bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSecret(!showSecret)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={upiSettings.accountHolderName}
+                  onChange={(e) => setUpiSettings({ ...upiSettings, accountHolderName: e.target.value })}
+                  placeholder="KATIKAM JAYANTH"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#5f259f] text-slate-900 bg-white"
+                />
                 <p className="text-[11px] text-slate-400">
-                  Private credential for verifying webhook signatures and server authorization.
+                  Verified bank beneficiary name as printed on PhonePe QR code.
                 </p>
               </div>
 
             </div>
 
-            {/* Gateway Parameters */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-              
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Active Mode</span>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-extrabold text-slate-800">Razorpay Test Mode</span>
+            {/* QR Code Upload / Replace Section */}
+            <div className="p-5 rounded-2xl bg-purple-50/40 border border-purple-200/80 space-y-4">
+              <div className="flex flex-col sm:flex-row items-center gap-5">
+                <img
+                  src={upiSettings.qrCodeImageUrl}
+                  alt="Current PhonePe QR"
+                  className="w-28 h-28 object-contain rounded-xl border border-purple-200 bg-white p-2 shadow-sm"
+                />
+
+                <div className="space-y-2 text-center sm:text-left">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-900">Active PhonePe QR Code</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Customers scan this image from any UPI app (PhonePe, Google Pay, Paytm, BHIM, Cred).
+                    </p>
+                  </div>
+
+                  <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-purple-300 hover:bg-purple-50 text-[#5f259f] text-xs font-bold shadow-2xs transition-all cursor-pointer">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload & Replace QR Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            setUpiSettings((prev: UPIPaymentSettings) => ({
+                              ...prev,
+                              qrCodeImageUrl: event.target?.result as string,
+                              qrImageUrl: event.target?.result as string
+                            }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
-                <p className="text-[10px] text-slate-500">Supports test cards, UPI, net banking simulation.</p>
               </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Accepted Currencies</span>
-                <div className="text-xs font-extrabold text-slate-800">INR (₹ Indian Rupee)</div>
-                <p className="text-[10px] text-slate-500">Direct settlement to statutory nodal accounts.</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Supported Channels</span>
-                <div className="text-xs font-extrabold text-slate-800">UPI, Cards, Net Banking, QR</div>
-                <p className="text-[10px] text-slate-500">Google Pay, PhonePe, Paytm, RuPay, Visa, MC.</p>
-              </div>
-
             </div>
 
-            {/* Test Credentials Quick Reference */}
-            <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200/80 space-y-2">
-              <h4 className="text-xs font-bold text-[#104A96] flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5" />
-                <span>How to Test Payments in Razorpay Test Mode</span>
-              </h4>
-              <ul className="text-[11px] text-slate-600 space-y-1 list-disc list-inside">
-                <li><strong>UPI:</strong> Enter any valid VPA (e.g., <code className="font-mono bg-white px-1 py-0.5 rounded border border-blue-200">success@razorpay</code>) and click Success on the simulated authorization.</li>
-                <li><strong>Cards:</strong> Use card <code className="font-mono bg-white px-1 py-0.5 rounded border border-blue-200">4111 1111 1111 1111</code> with any future MM/YY and any 3-digit CVV. Test OTP is <code className="font-mono bg-white px-1 py-0.5 rounded border border-blue-200">123456</code>.</li>
-                <li><strong>Net Banking:</strong> Select any bank (SBI, HDFC, ICICI) and select "Success" on the mock portal screen.</li>
-              </ul>
+            {/* Gateway Parameters */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+              
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Gateway Engine</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-extrabold text-slate-800">Direct PhonePe UPI QR</span>
+                </div>
+                <p className="text-[10px] text-slate-500">Zero transaction gateway surcharges or third-party fees.</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Reconciliation</span>
+                <div className="text-xs font-extrabold text-slate-800">12-Digit Bank UTR Proof</div>
+                <p className="text-[10px] text-slate-500">Admin reviews bank credit & unlocks applications safely.</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Supported Apps</span>
+                <div className="text-xs font-extrabold text-slate-800">PhonePe, GPay, Paytm, BHIM</div>
+                <p className="text-[10px] text-slate-500">All Indian bank UPI handles supported.</p>
+              </div>
+
             </div>
 
           </div>

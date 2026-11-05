@@ -179,13 +179,12 @@ export const INITIAL_WEBSITE_SETTINGS: WebsiteSettings = {
   applicationFee: 50,
   requirePaymentBeforeApply: true,
   paymentGateway: {
-    provider: 'razorpay',
-    keyId: 'rzp_test_TvkCL1OAbneDCO',
-    keySecret: 'XCWHY5IwxtP49KB6t7DJILjt',
+    provider: 'manual_upi',
+    upiId: '9346801736@ybl',
+    beneficiaryName: 'KATIKAM JAYANTH',
+    qrImageUrl: '/payment/phonepe_qr.jpg',
     isEnabled: true,
-    isTestMode: true,
-    merchantName: 'Apply365 — Services for People',
-    themeColor: '#104A96'
+    instructions: 'Scan PhonePe QR or pay to UPI ID 9346801736@ybl. Verify beneficiary is KATIKAM JAYANTH. Enter UTR and upload screenshot.'
   },
   updatedAt: new Date().toISOString()
 };
@@ -983,7 +982,7 @@ export async function getAllApplications(): Promise<CustomerApplication[]> {
           paymentAmount: paymentInfo.amount !== undefined ? Number(paymentInfo.amount) : 50,
           paymentTransactionId: paymentInfo.txnId || item.payment_transaction_id || '',
           paymentDate: paymentInfo.date || item.created_at,
-          paymentMethod: paymentInfo.method || 'Razorpay',
+          paymentMethod: paymentInfo.method || 'UPI',
           priority: item.priority || 'standard',
           submissionDate: item.created_at || item.submissionDate || new Date().toISOString(),
           createdAt: item.created_at || item.createdAt || new Date().toISOString(),
@@ -1027,7 +1026,7 @@ export async function saveNewApplication(app: CustomerApplication): Promise<Cust
           amount: app.paymentAmount ?? 50,
           txnId: app.paymentTransactionId || '',
           date: app.paymentDate || new Date().toISOString(),
-          method: app.paymentMethod || 'Razorpay'
+          method: app.paymentMethod || 'UPI'
         }
       },
       documents: app.documents || [],
@@ -1073,14 +1072,14 @@ export async function saveNewApplication(app: CustomerApplication): Promise<Cust
             id: `pay_${Date.now()}`,
             amount: fee,
             paymentDate: new Date().toISOString().slice(0, 10),
-            paymentMethod: 'razorpay',
+            paymentMethod: 'UPI',
             referenceNumber: app.paymentTransactionId || `pay_verified_${Date.now()}`,
-            notes: 'Mandatory Application Fee paid at time of application submission',
-            recordedBy: 'Razorpay Payment Gateway',
+            notes: 'Application Fee verified & approved via PhonePe/UPI QR',
+            recordedBy: 'Admin Approval (UPI Verification)',
             receiptUrl: ''
           }
         ],
-        notes: `Application Fee for ${app.serviceTitle} paid via Razorpay (Txn ID: ${app.paymentTransactionId || 'Verified'})`
+        notes: `Application Fee for ${app.serviceTitle} verified via UPI (UTR: ${app.paymentTransactionId || 'Verified'})`
       });
     }
   } catch (invErr) {

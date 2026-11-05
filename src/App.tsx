@@ -134,7 +134,7 @@ const AppContent: React.FC = () => {
           <Route path="/track-status" element={<TrackApplicationPage />} />
           <Route path="/track/:id" element={<TrackApplicationPage />} />
 
-          {/* Quick Online Payment via Razorpay */}
+          {/* Quick Online Payment via PhonePe / UPI QR */}
           <Route path="/pay" element={<PublicPaymentPage />} />
           <Route path="/pay/:invoiceId" element={<PublicPaymentPage />} />
           <Route path="/payment" element={<PublicPaymentPage />} />

@@ -8,7 +8,7 @@ import { getServiceAppConfig, ServiceAppConfig } from '../data/serviceApplicatio
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { saveApplication } from '../services/dbService';
-import { openRazorpayCheckout } from '../services/razorpayService';
+import { PhonePeQrPaymentCard } from '../components/PhonePeQrPaymentCard';
 import { CustomerApplication, ApplicationDocument } from '../types/application';
 import { DocumentPreviewModal } from '../components/DocumentPreviewModal';
 import { downloadDocumentFile } from '../utils/fileDownloadHelper';
@@ -128,7 +128,6 @@ export const ServiceDetailPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // Document Preview Modal State
   const [previewDocIndex, setPreviewDocIndex] = useState<number>(-1);
@@ -435,71 +434,30 @@ export const ServiceDetailPage: React.FC = () => {
     }
   };
 
-  // Step 6: Final Razorpay Payment Execution
-  const handleCompletePayment = async () => {
+  // Step 5: Payment Proof Submission Handler
+  const handlePaymentProofSubmitted = async (submission: any) => {
     if (!pendingApp) return;
-    setErrorMsg('');
-    setIsProcessingPayment(true);
-
     try {
-      const payerName = pendingApp.customerName;
-      const payerEmail = pendingApp.customerEmail;
-      const payerPhone = pendingApp.customerMobile;
-      const customKeyId = websiteSettings?.paymentGateway?.keyId;
-
-      const response = await openRazorpayCheckout({
-        amount: feeAmount,
-        currency: 'INR',
-        name: websiteSettings?.siteName || 'Apply365 — Services for People',
-        description: `Apply-365 Service Processing Fee: ${pendingApp.serviceTitle}`,
-        invoiceId: pendingApp.id,
-        customerName: payerName,
-        customerEmail: payerEmail,
-        customerPhone: payerPhone,
-        themeColor: websiteSettings?.paymentGateway?.themeColor || '#104A96',
-        notes: {
-          application_id: pendingApp.id,
-          service_title: pendingApp.serviceTitle,
-          customer_name: payerName,
-          fee_type: 'Apply-365 Service Processing Fee'
-        }
-      }, customKeyId);
-
-      if (response && response.razorpay_payment_id) {
-        const txnId = response.razorpay_payment_id;
-        const nowIso = new Date().toISOString();
-
-        // Update application to fully verified and submitted state
-        const updatedApp: CustomerApplication = {
-          ...pendingApp,
-          status: 'Completed',
-          paymentStatus: 'payment_completed',
-          paymentTransactionId: txnId,
-          paymentDate: nowIso,
-          paymentMethod: 'Razorpay',
-          updatedAt: nowIso
-        };
-
-        await saveApplication(updatedApp);
-        await saveNewApplication(updatedApp);
-        setPendingApp(updatedApp);
-        setCurrentStep('success');
-
-        try {
-          confetti({
-            particleCount: 90,
-            spread: 70,
-            origin: { y: 0.5 }
-          });
-        } catch {}
-
-        window.scrollTo({ top: 150, behavior: 'smooth' });
-      }
-    } catch (err: any) {
-      console.warn('Payment failed or cancelled:', err);
-      setErrorMsg(err?.message || 'Payment was not completed. Your application details remain safely saved; you can complete payment anytime.');
-    } finally {
-      setIsProcessingPayment(false);
+      const updated: CustomerApplication = {
+        ...pendingApp,
+        status: 'Under Review',
+        paymentStatus: 'payment_pending',
+        paymentTransactionId: submission.utrNumber,
+        paymentMethod: 'UPI (PhonePe Manual QR)',
+        paymentDate: submission.paymentDate,
+        updatedAt: new Date().toISOString()
+      };
+      await saveApplication(updated);
+      setPendingApp(updated);
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.5 }
+        });
+      } catch {}
+    } catch (e) {
+      console.warn('Update app on proof submit note:', e);
     }
   };
 
@@ -541,9 +499,9 @@ export const ServiceDetailPage: React.FC = () => {
             id: `pay_${pendingApp.id}`,
             amount: feeAmount,
             paymentDate: new Date().toISOString().slice(0, 10),
-            paymentMethod: 'Razorpay',
-            referenceNumber: pendingApp.paymentTransactionId || 'Razorpay Verified',
-            recordedBy: 'Razorpay Payment Gateway',
+            paymentMethod: 'PhonePe / UPI QR',
+            referenceNumber: pendingApp.paymentTransactionId || 'UPI Verified',
+            recordedBy: 'Admin Verified',
             notes: 'Apply-365 Service Processing Fee paid online'
           }
         ],
@@ -1184,150 +1142,23 @@ export const ServiceDetailPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 5: FINAL PAYMENT PAGE (PAYMENT-LAST)                                  */}
+        {/* STEP 5: FINAL PAYMENT PAGE (MANUAL PHONEPE / UPI QR VERIFICATION)         */}
         {/* ========================================================================= */}
         {currentStep === 'payment' && pendingApp && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            
-            <div className="bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/80 space-y-8">
-              
-              <div className="border-b border-slate-100 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase mb-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Application Saved (Reference: {pendingApp.id})</span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                    {t('pay.title', 'Complete Your Application Payment')}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                    {activePricing.isFree 
-                      ? 'Your application is securely saved. Please click Complete Application to submit for officer review.' 
-                      : `Your application is securely saved. Please complete the ₹${feeAmount} fee to submit for officer review.`}
-                  </p>
-                </div>
-
-                <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200 text-left self-start sm:self-auto">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Tracking Number</span>
-                  <span className="font-mono font-black text-sm sm:text-base text-[#104A96] block">{pendingApp.id}</span>
-                </div>
-              </div>
-
-              {/* Payment Summary Box */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                <div className="lg:col-span-7 space-y-5">
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      {t('pay.summary', 'Payment Summary')}
-                    </h3>
-
-                    <div className="space-y-3 divide-y divide-slate-200/60 text-xs sm:text-sm">
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-slate-600">{t('pay.service', 'Selected Service')}</span>
-                        <span className="font-bold text-slate-900">{pendingApp.serviceTitle}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <span className="text-slate-600">Applicant</span>
-                        <span className="font-bold text-slate-900">{pendingApp.customerName}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <div>
-                          <span className="text-slate-700 font-semibold block">{t('pay.serviceFeeTitle', 'Apply-365 Service Processing Fee')}</span>
-                          <span className="text-[11px] text-slate-400 block">{t('pay.disclaimer', 'Private documentation facilitation charge')}</span>
-                        </div>
-                        <span className="font-bold text-slate-900 text-sm">₹{feeAmount}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <span className="text-slate-600">{t('pay.verification', 'Document Verification & Legal Review')}</span>
-                        <span className="font-bold text-emerald-600">{t('pay.included', 'Included (₹0)')}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3">
-                        <span className="text-slate-600">{t('pay.smsUpdates', 'SMS & WhatsApp Updates')}</span>
-                        <span className="font-bold text-emerald-600">{t('pay.included', 'Included (₹0)')}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-4 text-base">
-                        <span className="font-black text-slate-900">{t('pay.total', 'Total Amount Payable')}</span>
-                        <span className="font-black text-2xl text-[#104A96]">₹{feeAmount}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Trust Indicators */}
-                  <div className="grid grid-cols-2 gap-3 text-xs text-slate-600">
-                    <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 flex items-center gap-2">
-                      <ShieldCheck className="w-5 h-5 text-[#104A96] shrink-0" />
-                      <div>
-                        <span className="font-bold text-slate-800 block">256-Bit SSL</span>
-                        <span className="text-[10px] text-slate-400">Bank Grade Security</span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center gap-2">
-                      <Receipt className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <div>
-                        <span className="font-bold text-slate-800 block">Instant Receipt</span>
-                        <span className="text-[10px] text-slate-400">PDF Generated</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Pay Card */}
-                <div className="lg:col-span-5 bg-gradient-to-b from-slate-50 to-white rounded-2xl p-6 border border-slate-200/90 shadow-sm space-y-5">
-                  <div className="space-y-1">
-                    <span className="text-xs font-black uppercase tracking-wider text-[#104A96] block">
-                      Pay via Razorpay Gateway
-                    </span>
-                    <p className="text-xs text-slate-500">
-                      Supports UPI (GPay, PhonePe, Paytm), Debit/Credit Cards & Net Banking.
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Applicant Contact:</span>
-                      <span className="font-mono font-bold text-slate-800">{pendingApp.customerMobile}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Payable:</span>
-                      <span className="font-bold text-[#104A96]">₹{feeAmount}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleCompletePayment}
-                    disabled={isProcessingPayment}
-                    className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer active:scale-98 disabled:opacity-50"
-                  >
-                    {isProcessingPayment ? (
-                      <>
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                        <span>Connecting to Gateway...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="w-5 h-5" />
-                        <span>{activePricing.isFree ? 'Complete Free Application' : `Pay ₹${feeAmount} & Complete Application`}</span>
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-[11px] text-center text-slate-400">
-                    {t('pay.secureNotice', 'Secured by Razorpay • UPI, Cards, Net Banking & Wallets Accepted')}
-                  </p>
-                </div>
-
-              </div>
-
-            </div>
-
+            <PhonePeQrPaymentCard
+              orderId={pendingApp.id}
+              applicationId={pendingApp.id}
+              customerId={pendingApp.customerId}
+              customerName={pendingApp.customerName}
+              customerEmail={pendingApp.customerEmail}
+              customerMobile={pendingApp.customerMobile}
+              serviceId={config.id}
+              serviceTitle={config.title}
+              serviceType={selectedSubService}
+              payableAmount={feeAmount}
+              onPaymentSubmitted={handlePaymentProofSubmitted}
+            />
           </div>
         )}
 
@@ -1402,7 +1233,7 @@ export const ServiceDetailPage: React.FC = () => {
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Razorpay Txn</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">UPI UTR Ref</span>
                 <span className="text-[11px] font-mono font-bold text-slate-700 truncate block">
                   {pendingApp.paymentTransactionId || 'Verified'}
                 </span>
