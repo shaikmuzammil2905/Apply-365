@@ -29,6 +29,8 @@ import { ApplyPage } from './pages/ApplyPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsPage } from './pages/TermsPage';
 import { PublicPaymentPage } from './pages/PublicPaymentPage';
+import { CheckoutPage } from './pages/CheckoutPage';
+import { PaymentStatusPage } from './pages/PaymentStatusPage';
 
 // Customer Auth & Portal Pages
 import { LoginPage } from './pages/auth/LoginPage';
@@ -133,6 +135,12 @@ const AppContent: React.FC = () => {
           <Route path="/track" element={<TrackApplicationPage />} />
           <Route path="/track-status" element={<TrackApplicationPage />} />
           <Route path="/track/:id" element={<TrackApplicationPage />} />
+
+          {/* Dedicated Mandatory 6-Step Checkout & Payment Status Routes */}
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/checkout/:slug" element={<CheckoutPage />} />
+          <Route path="/payment-status" element={<PaymentStatusPage />} />
+          <Route path="/payment-status/:orderId" element={<PaymentStatusPage />} />
 
           {/* Quick Online Payment via PhonePe / UPI QR */}
           <Route path="/pay" element={<PublicPaymentPage />} />

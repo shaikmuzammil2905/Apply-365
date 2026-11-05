@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { getPaymentSettings, submitPaymentProof, DEFAULT_PAYMENT_SETTINGS } from '../services/paymentService';
 import { PaymentSettings } from '../types/payment';
+import { getActiveCheckout, updateCheckoutState } from '../services/checkoutService';
 
 export interface PhonePeQrPaymentCardProps {
   orderId: string;
@@ -179,6 +180,26 @@ export const PhonePeQrPaymentCard: React.FC<PhonePeQrPaymentCardProps> = ({
         screenshotFileSize,
         paymentDate
       });
+
+      // 2. Synchronize checkout state machine to PENDING_VERIFICATION with payment proof
+      try {
+        const active = getActiveCheckout();
+        if (active && (active.orderId === orderId || active.applicationId === orderId || !active.orderId)) {
+          updateCheckoutState('PENDING_VERIFICATION', {
+            paymentProof: {
+              utrNumber: cleanUtr,
+              screenshotUrl: screenshotDataUrl,
+              screenshotFileName: screenshotFileName || 'payment_proof.jpg',
+              screenshotFileSize: screenshotFileSize || '',
+              paymentDate,
+              paidAmount: actualAmount,
+              submittedAt: new Date().toISOString()
+            }
+          });
+        }
+      } catch (syncErr) {
+        console.warn('Checkout sync warning:', syncErr);
+      }
 
       setIsSubmittedSuccess(true);
       handleSuccess(submission);

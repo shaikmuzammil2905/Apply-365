@@ -15,6 +15,12 @@ import { downloadDocumentFile } from '../utils/fileDownloadHelper';
 import { calculateServicePrice } from '../utils/pricingHelper';
 import { Breadcrumbs } from '../components/Breadcrumbs';
 import { generateInvoicePDF, generateApplicationSummaryPDF, formatINR } from '../utils/pdfGenerator';
+import { 
+  getActiveCheckout, 
+  createCheckoutOrder, 
+  updateCheckoutState, 
+  canAccessPaymentStatus 
+} from '../services/checkoutService';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle2, 
@@ -201,6 +207,60 @@ export const ServiceDetailPage: React.FC = () => {
       });
     }
     setCheckedDocs(initialChecklist);
+
+    // Persistence: If the customer refreshed during PAYMENT_REQUIRED, keep them on the payment page
+    const activeCheckout = getActiveCheckout();
+    if (activeCheckout && activeCheckout.serviceSlug === activeSlug) {
+      if (activeCheckout.state === 'PAYMENT_REQUIRED') {
+        setPendingApp({
+          id: activeCheckout.orderId,
+          customerId: activeCheckout.customerId,
+          customerName: activeCheckout.customerName,
+          customerEmail: activeCheckout.customerEmail,
+          customerMobile: activeCheckout.customerMobile,
+          serviceId: activeCheckout.serviceId,
+          serviceSlug: activeCheckout.serviceSlug,
+          serviceTitle: activeCheckout.serviceTitle,
+          serviceType: activeCheckout.serviceType,
+          status: 'Submitted',
+          paymentStatus: 'payment_pending',
+          paymentAmount: activeCheckout.payableAmount,
+          submissionDate: activeCheckout.createdAt,
+          createdAt: activeCheckout.createdAt,
+          updatedAt: activeCheckout.updatedAt,
+          formData: activeCheckout.formData as any,
+          documents: activeCheckout.documents as any
+        });
+        setCurrentStep('payment');
+        return;
+      } else if (activeCheckout.state === 'PENDING_VERIFICATION' || activeCheckout.state === 'APPROVED') {
+        setPendingApp({
+          id: activeCheckout.orderId,
+          customerId: activeCheckout.customerId,
+          customerName: activeCheckout.customerName,
+          customerEmail: activeCheckout.customerEmail,
+          customerMobile: activeCheckout.customerMobile,
+          serviceId: activeCheckout.serviceId,
+          serviceSlug: activeCheckout.serviceSlug,
+          serviceTitle: activeCheckout.serviceTitle,
+          serviceType: activeCheckout.serviceType,
+          status: 'Under Review',
+          paymentStatus: 'payment_pending',
+          paymentAmount: activeCheckout.payableAmount,
+          paymentTransactionId: activeCheckout.paymentProof?.utrNumber,
+          paymentMethod: 'UPI (PhonePe Manual QR)',
+          paymentDate: activeCheckout.paymentProof?.paymentDate,
+          submissionDate: activeCheckout.createdAt,
+          createdAt: activeCheckout.createdAt,
+          updatedAt: activeCheckout.updatedAt,
+          formData: activeCheckout.formData as any,
+          documents: activeCheckout.documents as any
+        });
+        setCurrentStep('success');
+        return;
+      }
+    }
+
     setCurrentStep('form');
     setPendingApp(null);
     setErrorMsg('');
@@ -423,6 +483,29 @@ export const ServiceDetailPage: React.FC = () => {
       await saveApplication(appRecord);
       await saveNewApplication(appRecord);
 
+      // 2. Synchronize active checkout state machine: ORDER_CREATED -> PAYMENT_REQUIRED
+      const origPrice = activePricing.originalPrice || activePricing.total || 50;
+      const discAmt = origPrice > activePricing.total ? origPrice - activePricing.total : 0;
+
+      createCheckoutOrder({
+        orderId: uniqueId,
+        serviceId: config.id,
+        serviceSlug: activeSlug,
+        serviceTitle: config.title,
+        serviceDescription: activeService.shortDescription,
+        serviceType: selectedSubService || 'Standard',
+        originalPrice: origPrice,
+        discount: discAmt,
+        payableAmount: feeAmount,
+        customerId,
+        customerName: appRecord.customerName,
+        customerEmail: appRecord.customerEmail,
+        customerMobile: appRecord.customerMobile,
+        formData,
+        documents
+      });
+      updateCheckoutState('PAYMENT_REQUIRED');
+
       setPendingApp(appRecord);
       setCurrentStep('payment');
       window.scrollTo({ top: 250, behavior: 'smooth' });
@@ -449,6 +532,23 @@ export const ServiceDetailPage: React.FC = () => {
       };
       await saveApplication(updated);
       setPendingApp(updated);
+
+      // Advance checkout state machine to PENDING_VERIFICATION
+      updateCheckoutState('PENDING_VERIFICATION', {
+        paymentProof: {
+          utrNumber: submission.utrNumber,
+          screenshotUrl: submission.screenshotUrl,
+          screenshotFileName: submission.screenshotFileName,
+          paymentDate: submission.paymentDate,
+          paidAmount: feeAmount,
+          submittedAt: new Date().toISOString()
+        }
+      });
+
+      // Advance to Step 6 Payment Status view
+      setCurrentStep('success');
+      window.scrollTo({ top: 200, behavior: 'smooth' });
+
       try {
         confetti({
           particleCount: 80,
@@ -1128,7 +1228,7 @@ export const ServiceDetailPage: React.FC = () => {
                       <span>
                         {activePricing.isFree 
                           ? 'Submit Application (Free)' 
-                          : `Submit Details & Proceed to Payment (₹${feeAmount})`}
+                          : `Continue to Payment (₹${feeAmount})`}
                       </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
@@ -1163,25 +1263,25 @@ export const ServiceDetailPage: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* STEP 6: SUCCESS CONFIRMATION                                              */}
+        {/* STEP 6: PAYMENT STATUS PAGE (MANDATORY PENDING VERIFICATION STATE)        */}
         {/* ========================================================================= */}
         {currentStep === 'success' && pendingApp && (
           <div className="bg-white rounded-3xl p-6 sm:p-12 shadow-xl border border-slate-100 text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
             
-            <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-              <CheckCircle2 className="w-10 h-10" />
+            <div className="w-20 h-20 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
+              <Clock className="w-10 h-10 animate-pulse" />
             </div>
 
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold tracking-wide uppercase">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{t('success.title', 'Your Application Has Been Successfully Submitted!')}</span>
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-black tracking-wide uppercase">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Payment Status: PENDING VERIFICATION</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                Application Received & Processing
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                Payment Proof Submitted
               </h2>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
-                {t('success.desc', 'Our documentation team has received your application and documents.')}
+              <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
+                Your payment proof has been received. Our team will verify the payment and activate your service shortly.
               </p>
             </div>
 
@@ -1189,7 +1289,7 @@ export const ServiceDetailPage: React.FC = () => {
             <div className="max-w-md mx-auto p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 flex items-center justify-between">
               <div className="text-left">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                  {t('success.trackingNo', 'Application Tracking Number')}
+                  Order / Reference ID
                 </span>
                 <span className="text-lg sm:text-xl font-mono font-black text-[#104A96]">
                   {pendingApp.id}
@@ -1203,12 +1303,12 @@ export const ServiceDetailPage: React.FC = () => {
                 {copiedId ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{t('success.copied', 'Copied!')}</span>
+                    <span>Copied!</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>{t('success.copy', 'Copy')}</span>
+                    <span>Copy</span>
                   </>
                 )}
               </button>
@@ -1217,31 +1317,68 @@ export const ServiceDetailPage: React.FC = () => {
             {/* Application Overview Grid */}
             <div className="max-w-md mx-auto grid grid-cols-2 gap-3 text-left">
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Service</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Service Name</span>
                 <span className="text-xs font-bold text-slate-800 truncate block">{pendingApp.serviceTitle}</span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Application Status</span>
-                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                  {t('success.initialStatus', 'Application Received')}
-                </span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Status</span>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                  Paid: ₹{feeAmount}
+                <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                  PENDING VERIFICATION
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">UPI UTR Ref</span>
-                <span className="text-[11px] font-mono font-bold text-slate-700 truncate block">
-                  {pendingApp.paymentTransactionId || 'Verified'}
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Amount Paid</span>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                  ₹{feeAmount}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Submitted UTR Number</span>
+                <span className="text-[11px] font-mono font-bold text-purple-700 truncate block">
+                  {pendingApp.paymentTransactionId || 'Pending'}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 col-span-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Submission Date & Time</span>
+                <span className="text-xs font-mono font-medium text-slate-700 block mt-0.5">
+                  {new Date().toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 col-span-2 text-left">
+                <span className="text-[10px] uppercase font-bold text-amber-800 block">Service Access</span>
+                <span className="text-xs font-medium text-amber-900 block mt-0.5 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Locked — Awaiting admin verification of bank settlement.</span>
                 </span>
               </div>
             </div>
 
-            {/* PDF Downloads & Navigation */}
+            {/* Navigation & Actions */}
             <div className="pt-2 max-w-md mx-auto space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Link
+                  to={`/track?id=${pendingApp.id}`}
+                  className="w-full py-3 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Track Application</span>
+                </Link>
+
+                <Link
+                  to="/dashboard"
+                  className="w-full py-3 px-3 rounded-xl bg-[#104A96] hover:bg-[#07366F] text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span>Go to Customer Dashboard</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
