@@ -249,3 +249,4 @@ export async function submitCheckoutPaymentProof(params: SubmitPaymentProofParam
   setActiveCheckout(completedOrder);
   return completedOrder;
 }
+

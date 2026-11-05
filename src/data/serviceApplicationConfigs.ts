@@ -658,12 +658,91 @@ export const serviceAppConfigs: Record<string, ServiceAppConfig> = {
       },
     ],
   },
+
+  // 9. AYUSHMAN BHARAT HEALTH ACCOUNT (ABHA)
+  abha: {
+    id: 'abha',
+    slug: 'abha',
+    title: 'Ayushman Bharat Health Account (ABHA)',
+    tagline: 'Digital Health Card creation, 14-digit ABHA ID generation, and records linking',
+    prefix: 'ABH',
+    accentColor: '#059669',
+    fields: [
+      { name: 'fullName', label: 'Full Name (as per Aadhaar)', type: 'text', required: true, placeholder: 'e.g. Ramesh Kumar Sharma' },
+      { name: 'aadhaarNumber', label: '12-Digit Aadhaar Number', type: 'text', required: true, placeholder: 'XXXX XXXX XXXX' },
+      { name: 'dob', label: 'Date of Birth', type: 'date', required: true },
+      {
+        name: 'gender',
+        label: 'Gender',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'Male', label: 'Male' },
+          { value: 'Female', label: 'Female' },
+          { value: 'Other', label: 'Other' },
+        ],
+      },
+      { name: 'mobile', label: 'Aadhaar-Linked Mobile Number', type: 'text', required: true, placeholder: '10-digit mobile number for OTP' },
+      { name: 'email', label: 'Email Address (for Digital ABHA Card)', type: 'text', placeholder: 'yourname@example.com' },
+      { name: 'doorNo', label: 'House / Flat / Door Number', type: 'text', placeholder: 'e.g. Flat 302, Sai Residency' },
+      { name: 'street', label: 'Street / Area / Colony', type: 'text', placeholder: 'e.g. 5th Main, MG Road' },
+      { name: 'city', label: 'City / Town / Village', type: 'text', required: true, placeholder: 'e.g. Hyderabad' },
+      { name: 'district', label: 'District & State', type: 'text', required: true, placeholder: 'e.g. Hyderabad, Telangana' },
+      { name: 'pincode', label: 'PIN Code', type: 'text', required: true, placeholder: '6-digit postal PIN' },
+    ],
+    documents: [
+      {
+        id: 'doc-abha-aadhaar',
+        name: 'Aadhaar Card (Front & Back Copy)',
+        type: 'aadhaar-copy',
+        description: 'Clear copy of Aadhaar card used for official ABHA KYC verification.',
+        isMandatory: true,
+      },
+      {
+        id: 'doc-abha-photo',
+        name: 'Applicant Photograph',
+        type: 'photo',
+        description: 'Recent color passport-size photograph.',
+        isMandatory: false,
+      },
+    ],
+  },
+
+  // 10. CLEAN UNIVERSAL GENERIC FALLBACK (NO AADHAAR CORRECTION DROPDOWN)
+  generic: {
+    id: 'generic-service',
+    slug: 'generic',
+    title: 'Statutory Service Application',
+    tagline: 'Fast and verified government portal filing assistance',
+    prefix: 'SRV',
+    accentColor: '#104A96',
+    fields: [
+      { name: 'fullName', label: 'Full Name', type: 'text', required: true, placeholder: 'Enter official name' },
+      { name: 'mobile', label: 'Mobile Number', type: 'text', required: true, placeholder: '10-digit mobile' },
+      { name: 'email', label: 'Email Address', type: 'text', placeholder: 'name@example.com' },
+      { name: 'city', label: 'City / Town', type: 'text', required: true, placeholder: 'City name' },
+      { name: 'pincode', label: 'PIN Code', type: 'text', placeholder: '6-digit postal PIN' },
+    ],
+    documents: [
+      {
+        id: 'doc-generic-id',
+        name: 'Identity & Address Proof (Aadhaar / Voter ID / Passport)',
+        type: 'id-proof',
+        description: 'Valid government identity proof document.',
+        isMandatory: true,
+      },
+    ],
+  },
 };
 
 // Aliases lookup helper for universal routing
 export const getServiceAppConfig = (slug: string): ServiceAppConfig => {
-  if (!slug) return serviceAppConfigs.aadhaar;
+  if (!slug) return serviceAppConfigs.generic;
   const raw = slug.toLowerCase().trim();
+
+  if (raw.includes('abha') || raw.includes('ayushman')) {
+    return serviceAppConfigs.abha;
+  }
 
   const normalized = 
     raw === 'aadhaar-card' || raw === 'aadhaar' ? 'aadhaar' :
@@ -677,6 +756,6 @@ export const getServiceAppConfig = (slug: string): ServiceAppConfig => {
     raw === 'electricity-bill' ? 'aadhaar' :
     raw;
 
-  return serviceAppConfigs[normalized] || serviceAppConfigs.aadhaar;
+  return serviceAppConfigs[normalized] || serviceAppConfigs[raw] || serviceAppConfigs.generic;
 };
 

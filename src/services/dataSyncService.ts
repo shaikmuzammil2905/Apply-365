@@ -421,6 +421,10 @@ export async function deleteCourse(id: string): Promise<void> {
 // ==========================================
 export function getDefaultSubServices(slug: string): SubServiceOption[] {
   const s = (slug || '').toLowerCase();
+  // ABHA / Ayushman Bharat has no sub-services; do not show Aadhaar or standard options
+  if (s.includes('abha') || s.includes('ayushman')) {
+    return [];
+  }
   if (s.includes('aadhaar') || s.includes('aadhar')) {
     return [
       { value: 'name-correction', label: 'Name Spelling Correction', price: 50, isActive: true },
@@ -625,6 +629,7 @@ export function getInitialServiceBySlug(slug: string): ServiceDetail {
   const raw = slug.toLowerCase().trim();
 
   const normalized = 
+    raw.includes('abha') || raw.includes('ayushman') ? 'ayushman-bharat' :
     raw === 'aadhaar-card' || raw === 'aadhaar' || raw.includes('aadhaar') || raw.includes('aadhar') ? 'aadhaar' :
     raw === 'pan' || raw === 'pan-card' || raw.includes('pan') ? 'pan-card' :
     raw === 'voter' || raw === 'voter-id' || raw.includes('voter') ? 'voter-id' :
@@ -650,6 +655,7 @@ export async function getServiceBySlug(slug: string): Promise<ServiceDetail> {
   const raw = slug.toLowerCase().trim();
 
   const normalized = 
+    raw.includes('abha') || raw.includes('ayushman') ? 'ayushman-bharat' :
     raw === 'aadhaar-card' || raw === 'aadhaar' || raw.includes('aadhaar') || raw.includes('aadhar') ? 'aadhaar' :
     raw === 'pan' || raw === 'pan-card' || raw.includes('pan') ? 'pan-card' :
     raw === 'voter' || raw === 'voter-id' || raw.includes('voter') ? 'voter-id' :

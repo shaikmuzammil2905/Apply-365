@@ -320,6 +320,48 @@ export const servicesData: ServiceDetail[] = [
         answer: 'Yes, you can apply for passport re-issue up to 1 year before its expiration date or anytime after it has expired.'
       }
     ]
+  },
+  {
+    id: 'ayushman-bharat',
+    slug: 'ayushman-bharat',
+    title: 'Ayushman Bharat Health Account (ABHA)',
+    shortDescription: 'It is a digital repository for health records under official ABDM frameworks.',
+    fullDescription: 'Get expert guidance and assistance to generate your 14-digit Ayushman Bharat Health Account (ABHA) digital ID, link medical records, and download your official digital health card under National Health Authority (NHA) standards.',
+    accentColor: '#059669',
+    badge: 'Popular Service',
+    iconName: 'HeartHandshake',
+    servicePrice: 50,
+    pricingEnabled: true,
+    pricingModel: 'service_based',
+    subServices: [], // No Aadhaar sub-services
+    documents: [
+      { name: 'Aadhaar Card', description: 'Mandatory proof of identity for UIDAI-based ABHA generation and KYC.' },
+      { name: 'Mobile Number Linked to Aadhaar', description: 'Active mobile for OTP verification on official portal.' },
+      { name: 'Photograph', description: 'Recent color passport-size photograph.', isOptional: true }
+    ],
+    officialDisclaimer: 'ABHA serves as a digital health locker ID. It is not a substitute for AB-PMJAY ₹5 Lakh free medical insurance coverage.',
+    benefits: [
+      'Official 14-digit ABHA ID and PVC-ready digital health card',
+      'Encrypted digital locker for hospital summaries, lab reports, and prescriptions',
+      'Recognized at government and empaneled private hospitals nationwide',
+      'Complete privacy with consent-based record sharing'
+    ],
+    processSteps: [
+      { title: 'Aadhaar Verification', description: 'Authenticating your Aadhaar record via official NHA framework.' },
+      { title: 'ABHA ID Generation', description: 'Generating your 14-digit unique health account number.' },
+      { title: 'Profile & Address Setup', description: 'Configuring your personal health handle and medical locker.' },
+      { title: 'Digital Card Issuance', description: 'Receiving your verified digital ABHA card with QR code.' }
+    ],
+    faqs: [
+      {
+        question: 'What is the ABHA Health Account?',
+        answer: 'The Ayushman Bharat Health Account (ABHA) is a 14-digit unique health ID created under the Ayushman Bharat Digital Mission (ABDM) to store and share health records digitally.'
+      },
+      {
+        question: 'Is ABHA linked to Aadhaar?',
+        answer: 'Yes, creating an ABHA ID uses Aadhaar authentication to ensure unique identity verification across Indian healthcare facilities.'
+      }
+    ]
   }
 ];
 
@@ -329,6 +371,7 @@ export const getServiceBySlug = (slug: string): ServiceDetail => {
 
   // Comprehensive alias mappings for every service variant
   const normalized = 
+    raw.includes('abha') || raw.includes('ayushman') ? 'ayushman-bharat' :
     raw === 'aadhaar-card' || raw === 'aadhaar' || raw.includes('aadhaar') || raw.includes('aadhar') ? 'aadhaar' :
     raw === 'pan' || raw === 'pan-card' || raw.includes('pan') ? 'pan-card' :
     raw === 'voter' || raw === 'voter-id' || raw.includes('voter') ? 'voter-id' :
@@ -340,7 +383,7 @@ export const getServiceBySlug = (slug: string): ServiceDetail => {
     raw === 'electricity-bill' ? 'aadhaar' :
     raw;
 
-  const found = servicesData.find(service => service.slug === normalized || service.id === normalized);
+  const found = servicesData.find(service => service.slug === normalized || service.id === normalized || service.slug === raw || service.id === raw);
   if (found) return found;
 
   const partial = servicesData.find(s => s.slug.includes(normalized) || normalized.includes(s.slug));

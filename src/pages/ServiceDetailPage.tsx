@@ -267,6 +267,10 @@ export const ServiceDetailPage: React.FC = () => {
   }, [activeSlug, currentUser, service, config]);
 
   const activeService = service || getInitialServiceBySlug(activeSlug);
+  const isAbha = 
+    activeSlug.includes('abha') || 
+    activeSlug.includes('ayushman') || 
+    (activeService.title && (activeService.title.toLowerCase().includes('abha') || activeService.title.toLowerCase().includes('ayushman')));
   const IconComponent = iconMap[activeService.iconName] || Fingerprint;
   const activePricing = calculateServicePrice(activeService, selectedSubService);
   const feeAmount = activePricing.total;
@@ -754,8 +758,8 @@ export const ServiceDetailPage: React.FC = () => {
         {currentStep === 'form' && (
           <form onSubmit={handleProceedToDocuments} className="space-y-8 animate-in fade-in duration-200">
             
-            {/* Sub-Service Option Selector */}
-            {service.subServices && service.subServices.length > 0 && (
+            {/* Sub-Service Option Selector (Hidden on ABHA) */}
+            {!isAbha && service.subServices && service.subServices.length > 0 && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80 space-y-4">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                   <BadgeCheck className="w-5 h-5 text-[#104A96]" />
@@ -874,6 +878,24 @@ export const ServiceDetailPage: React.FC = () => {
                 {/* Dynamic Config Fields (Service Specific) */}
                 {config.fields.map((f) => {
                   if (['fullName', 'mobile', 'email', 'city'].includes(f.name)) return null;
+
+                  const isServiceSelect = f.name === 'serviceType' || 
+                                         f.name === 'passportServiceType' || 
+                                         f.name.toLowerCase().includes('servicetype');
+
+                  // In ABHA, those sections must NEVER be visible
+                  if (isAbha && isServiceSelect) return null;
+
+                  // If sub-service cards are already rendered at top, do not render duplicate select dropdown
+                  if (service.subServices && service.subServices.length > 0 && isServiceSelect) return null;
+
+                  // If non-Aadhaar service, do not render Aadhaar option dropdown
+                  if (!activeSlug.includes('aadhaar') && !service.slug.includes('aadhaar')) {
+                    if (f.options?.some(o => o.value === 'address-update' || o.value === 'name-correction' || o.label.includes('Aadhaar'))) {
+                      return null;
+                    }
+                  }
+
                   const hasErr = fieldErrors[f.name];
 
                   return (

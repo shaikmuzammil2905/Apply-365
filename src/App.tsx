@@ -130,6 +130,10 @@ const AppContent: React.FC = () => {
           <Route path="/services/esi" element={<ServiceDetailPage />} />
           <Route path="/services/esi-details-update" element={<ServiceDetailPage />} />
           <Route path="/services/passport" element={<ServiceDetailPage />} />
+          <Route path="/services/ayushman-bharat" element={<ServiceDetailPage />} />
+          <Route path="/services/ayushman" element={<ServiceDetailPage />} />
+          <Route path="/services/abha" element={<ServiceDetailPage />} />
+          <Route path="/services/ayushman-bharat-health-account-abha" element={<ServiceDetailPage />} />
 
           {/* Public Application Tracking */}
           <Route path="/track" element={<TrackApplicationPage />} />
