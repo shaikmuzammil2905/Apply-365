@@ -129,17 +129,20 @@ export const AdminPaymentsPage: React.FC = () => {
       sub.utrNumber.toLowerCase().includes(q) ||
       service.includes(q);
 
-    const matchStatus = statusFilter === 'ALL' || sub.verificationStatus === statusFilter;
+    const matchStatus = statusFilter === 'ALL' || 
+      sub.verificationStatus === statusFilter || 
+      sub.status === statusFilter ||
+      (statusFilter === 'RESUBMISSION_REQUESTED' && (sub.verificationStatus === 'RESUBMISSION_REQUIRED' || sub.status === 'RESUBMISSION_REQUIRED'));
     return matchSearch && matchStatus;
   });
 
   // KPI Calculations
-  const pendingCount = submissions.filter((s) => s.verificationStatus === 'PENDING_VERIFICATION').length;
-  const approvedCount = submissions.filter((s) => s.verificationStatus === 'APPROVED').length;
-  const rejectedCount = submissions.filter((s) => s.verificationStatus === 'REJECTED').length;
-  const resubmitCount = submissions.filter((s) => s.verificationStatus === 'RESUBMISSION_REQUESTED').length;
+  const pendingCount = submissions.filter((s) => s.verificationStatus === 'PENDING_VERIFICATION' || s.status === 'PENDING_VERIFICATION').length;
+  const approvedCount = submissions.filter((s) => s.verificationStatus === 'APPROVED' || s.status === 'APPROVED').length;
+  const rejectedCount = submissions.filter((s) => s.verificationStatus === 'REJECTED' || s.status === 'REJECTED').length;
+  const resubmitCount = submissions.filter((s) => s.verificationStatus === 'RESUBMISSION_REQUESTED' || s.verificationStatus === 'RESUBMISSION_REQUIRED' || s.status === 'RESUBMISSION_REQUESTED' || s.status === 'RESUBMISSION_REQUIRED').length;
   const totalVerifiedRevenue = submissions
-    .filter((s) => s.verificationStatus === 'APPROVED')
+    .filter((s) => s.verificationStatus === 'APPROVED' || s.status === 'APPROVED')
     .reduce((sum, s) => sum + s.amount, 0);
 
   // Action Handlers
@@ -1040,12 +1043,12 @@ export const AdminPaymentsPage: React.FC = () => {
                 </p>
               </div>
 
-              {/* Zoom Controls */}
-              <div className="flex items-center gap-1.5">
+              {/* Zoom & Action Controls */}
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.min(z + 0.25, 3))}
-                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
                   title="Zoom In"
                 >
                   <ZoomIn className="w-4 h-4" />
@@ -1053,19 +1056,51 @@ export const AdminPaymentsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.max(z - 0.25, 0.5))}
-                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
                   title="Zoom Out"
                 >
                   <ZoomOut className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setZoomLevel(1);
+                    setRotation(0);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer text-xs font-bold shadow-2xs"
+                  title="Reset Zoom & Rotation"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
                   onClick={() => setRotation((r) => (r + 90) % 360)}
-                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
-                  title="Rotate"
+                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                  title="Rotate 90°"
                 >
                   <RotateCw className="w-4 h-4" />
                 </button>
+                {viewScreenshotSub.screenshotUrl && (
+                  <>
+                    <a
+                      href={viewScreenshotSub.screenshotUrl}
+                      download={`Apply365-PaymentProof-${viewScreenshotSub.orderId}.jpg`}
+                      className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                      title="Download Original Screenshot"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                    <a
+                      href={viewScreenshotSub.screenshotUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                      title="Open Full Size in New Tab"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -1073,7 +1108,8 @@ export const AdminPaymentsPage: React.FC = () => {
                     setZoomLevel(1);
                     setRotation(0);
                   }}
-                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer ml-2"
+                  className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 cursor-pointer ml-1.5 shadow-2xs"
+                  title="Close Viewer"
                 >
                   <X className="w-4 h-4" />
                 </button>

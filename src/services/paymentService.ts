@@ -1,8 +1,8 @@
 import { PaymentSettings, PaymentSubmission, PaymentAuditLog, PaymentVerificationStatus } from '../types/payment';
-export type { PaymentSettings, PaymentSubmission, PaymentAuditLog, PaymentVerificationStatus } from '../types/payment';
+export type { PaymentSettings, PaymentSubmission, PaymentVerificationStatus } from '../types/payment';
 import { supabase } from './supabaseClient';
 import { saveApplication, getStoredApplications } from './dbService';
-import { createInvoice, recordInvoicePayment, getInvoices } from './dataSyncService';
+import { createInvoice, recordInvoicePayment, getInvoices, getAllApplications } from './dataSyncService';
 
 const SETTINGS_KEY = 'apply365_upi_settings_v1';
 const SUBMISSIONS_KEY = 'apply365_upi_submissions_v1';
@@ -21,11 +21,12 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   updatedAt: new Date().toISOString()
 };
 
-function normalizeSettings(s: PaymentSettings): PaymentSettings {
-  const name = s.accountHolderName || s.beneficiaryName || 'KATIKAM JAYANTH';
-  const qr = s.qrCodeImageUrl || s.qrImageUrl || '/payment/phonepe_qr.jpg';
-  const enabled = s.isUpiEnabled !== undefined ? s.isUpiEnabled : (s.isEnabled !== undefined ? s.isEnabled : true);
+function normalizeSettings(s: Partial<PaymentSettings> = {}): PaymentSettings {
+  const name = s.accountHolderName || s.beneficiaryName || DEFAULT_PAYMENT_SETTINGS.beneficiaryName;
+  const qr = s.qrCodeImageUrl || s.qrImageUrl || DEFAULT_PAYMENT_SETTINGS.qrImageUrl;
+  const enabled = s.isUpiEnabled !== undefined ? Boolean(s.isUpiEnabled) : (s.isEnabled !== undefined ? Boolean(s.isEnabled) : true);
   return {
+    ...DEFAULT_PAYMENT_SETTINGS,
     ...s,
     beneficiaryName: name,
     accountHolderName: name,
@@ -42,13 +43,33 @@ function normalizeSubmission(s: any): PaymentSubmission {
   const title = s.serviceTitle || s.serviceName || 'Statutory Application';
   return {
     ...s,
+    id: s.id || `PAY-${Date.now().toString().slice(-6)}`,
+    orderId: s.orderId || s.order_id || s.id,
+    applicationId: s.applicationId || s.application_id || s.orderId || s.id,
+    customerId: s.customerId || s.user_id || s.customer_id || 'guest',
+    customerName: s.customerName || s.customer_name || 'Customer',
+    customerEmail: s.customerEmail || s.customer_email || 'applyallservices365@gmail.com',
+    customerMobile: s.customerMobile || s.customer_mobile || '9121992365',
+    serviceId: s.serviceId || s.service_id || 'srv_gen',
+    serviceTitle: title,
+    serviceName: title,
+    serviceType: s.serviceType || s.service_type || 'Standard',
     amount: amt,
     paidAmount: amt,
-    expectedAmount: Number(s.expectedAmount || amt),
-    status: st,
-    verificationStatus: st,
-    serviceTitle: title,
-    serviceName: title
+    expectedAmount: Number(s.expectedAmount || s.expected_amount || amt),
+    utrNumber: (s.utrNumber || s.utr_number || '').trim(),
+    screenshotUrl: s.screenshotUrl || s.screenshot_path || '',
+    screenshotFileName: s.screenshotFileName || s.screenshot_file_name || 'screenshot.jpg',
+    screenshotFileSize: s.screenshotFileSize || s.screenshot_file_size || '',
+    paymentDate: s.paymentDate || s.payment_date || s.submittedAt || s.submitted_at || new Date().toISOString().slice(0, 10),
+    status: st as PaymentVerificationStatus,
+    verificationStatus: st as PaymentVerificationStatus,
+    submittedAt: s.submittedAt || s.submitted_at || new Date().toISOString(),
+    verifiedAt: s.verifiedAt || s.verified_at,
+    verifiedBy: s.verifiedBy || s.verified_by,
+    adminNotes: s.adminNotes || s.admin_notes || s.admin_note,
+    rejectionReason: s.rejectionReason || s.rejection_reason,
+    serviceActivated: Boolean(s.serviceActivated || s.service_activated || st === 'APPROVED')
   };
 }
 
@@ -81,6 +102,7 @@ function notifyPaymentChange(): void {
 // =========================================================================
 
 export async function getPaymentSettings(): Promise<PaymentSettings> {
+  // 1. Try dedicated payment_settings table
   try {
     const { data, error } = await supabase
       .from('payment_settings')
@@ -89,7 +111,7 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
       .maybeSingle();
 
     if (!error && data) {
-      const settings: PaymentSettings = normalizeSettings({
+      const settings = normalizeSettings({
         id: data.id,
         upiId: data.upi_id || DEFAULT_PAYMENT_SETTINGS.upiId,
         beneficiaryName: data.beneficiary_name || DEFAULT_PAYMENT_SETTINGS.beneficiaryName,
@@ -103,9 +125,27 @@ export async function getPaymentSettings(): Promise<PaymentSettings> {
       return settings;
     }
   } catch (err) {
-    console.warn('Supabase payment_settings fetch failed, using local cache:', err);
+    // Continue to fallback
   }
 
+  // 2. Try website_content table (which always exists in Supabase)
+  try {
+    const { data: contentData, error: contentErr } = await supabase
+      .from('website_content')
+      .select('*')
+      .eq('section_key', 'upi_payment_settings')
+      .maybeSingle();
+
+    if (!contentErr && contentData && contentData.content_data) {
+      const parsed = normalizeSettings(contentData.content_data);
+      setStored(SETTINGS_KEY, parsed);
+      return parsed;
+    }
+  } catch (err) {
+    // Continue to local cache
+  }
+
+  // 3. Fall back to local storage
   return normalizeSettings(getStored<PaymentSettings>(SETTINGS_KEY, DEFAULT_PAYMENT_SETTINGS));
 }
 
@@ -117,6 +157,18 @@ export async function savePaymentSettings(settings: PaymentSettings): Promise<Pa
   });
   setStored(SETTINGS_KEY, updated);
 
+  // 1. Upsert to website_content table (100% supported with anon full access)
+  try {
+    await supabase.from('website_content').upsert({
+      section_key: 'upi_payment_settings',
+      content_data: updated,
+      updated_at: now
+    });
+  } catch (err) {
+    console.warn('Supabase website_content upsert error:', err);
+  }
+
+  // 2. Upsert to payment_settings table if it exists
   try {
     await supabase.from('payment_settings').upsert({
       id: settings.id || 'default_upi_settings',
@@ -128,7 +180,7 @@ export async function savePaymentSettings(settings: PaymentSettings): Promise<Pa
       updated_at: now
     });
   } catch (err) {
-    console.warn('Supabase payment_settings save error, cached locally:', err);
+    // Non-fatal if table not yet migrated
   }
 
   notifyPaymentChange();
@@ -140,46 +192,159 @@ export async function savePaymentSettings(settings: PaymentSettings): Promise<Pa
 // =========================================================================
 
 export async function getPaymentSubmissions(): Promise<PaymentSubmission[]> {
+  const mergedMap = new Map<string, PaymentSubmission>();
+
+  // A. Local storage cached submissions
+  const localSubs = getStored<PaymentSubmission[]>(SUBMISSIONS_KEY, []);
+  localSubs.forEach(s => {
+    if (s && (s.id || s.orderId)) {
+      const key = s.orderId || s.id;
+      mergedMap.set(key, normalizeSubmission(s));
+    }
+  });
+
+  // B. Query dedicated payment_submissions table (if present in Supabase)
   try {
     const { data, error } = await supabase
       .from('payment_submissions')
       .select('*')
       .order('submitted_at', { ascending: false });
 
-    if (!error && data && data.length > 0) {
-      const mapped: PaymentSubmission[] = data.map((item: any) => normalizeSubmission({
-        id: item.id,
-        orderId: item.order_id,
-        applicationId: item.application_id || item.order_id,
-        customerId: item.user_id || item.customer_id,
-        customerName: item.customer_name,
-        customerEmail: item.customer_email,
-        customerMobile: item.customer_mobile,
-        serviceId: item.service_id,
-        serviceTitle: item.service_title,
-        serviceType: item.service_type,
-        expectedAmount: Number(item.expected_amount || item.paid_amount || 0),
-        paidAmount: Number(item.paid_amount || 0),
-        utrNumber: item.utr_number,
-        screenshotUrl: item.screenshot_path,
-        paymentDate: item.payment_date || item.submitted_at,
-        status: (item.payment_status || 'PENDING_VERIFICATION') as PaymentVerificationStatus,
-        submittedAt: item.submitted_at,
-        verifiedAt: item.verified_at,
-        verifiedBy: item.verified_by,
-        adminNotes: item.admin_note,
-        rejectionReason: item.rejection_reason,
-        serviceActivated: Boolean(item.service_activated)
-      }));
-      setStored(SUBMISSIONS_KEY, mapped);
-      return mapped;
+    if (!error && Array.isArray(data)) {
+      data.forEach((item: any) => {
+        const sub = normalizeSubmission({
+          id: item.id,
+          orderId: item.order_id,
+          applicationId: item.application_id || item.order_id,
+          customerId: item.user_id || item.customer_id,
+          customerName: item.customer_name,
+          customerEmail: item.customer_email,
+          customerMobile: item.customer_mobile,
+          serviceId: item.service_id,
+          serviceTitle: item.service_title,
+          serviceType: item.service_type,
+          expectedAmount: Number(item.expected_amount || item.paid_amount || 0),
+          paidAmount: Number(item.paid_amount || 0),
+          utrNumber: item.utr_number,
+          screenshotUrl: item.screenshot_path,
+          paymentDate: item.payment_date || item.submitted_at,
+          status: item.payment_status || 'PENDING_VERIFICATION',
+          submittedAt: item.submitted_at,
+          verifiedAt: item.verified_at,
+          verifiedBy: item.verified_by,
+          adminNotes: item.admin_note,
+          rejectionReason: item.rejection_reason,
+          serviceActivated: Boolean(item.service_activated)
+        });
+        const key = sub.orderId || sub.id;
+        mergedMap.set(key, sub);
+      });
     }
   } catch (err) {
-    console.warn('Supabase payment_submissions fetch failed, using local cache:', err);
+    // Continue to synthesize from applications
   }
 
-  const local = getStored<PaymentSubmission[]>(SUBMISSIONS_KEY, []);
-  return local.map(normalizeSubmission);
+  // C. Query public.applications table (which is actively working in Supabase)
+  try {
+    const { data: apps, error: appsErr } = await supabase
+      .from('applications')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!appsErr && Array.isArray(apps)) {
+      apps.forEach((app: any) => {
+        const paymentMeta = app.form_data?._payment || {};
+        
+        // Find screenshot in documents array if not directly in _payment
+        let screenshotUrl = paymentMeta.screenshotUrl || '';
+        let screenshotFileName = paymentMeta.screenshotFileName || '';
+        let screenshotFileSize = paymentMeta.screenshotFileSize || '';
+        
+        if (!screenshotUrl && Array.isArray(app.documents)) {
+          const docProof = app.documents.find((d: any) => 
+            d.id?.includes('screenshot') || 
+            d.id?.includes('proof') || 
+            d.name?.toLowerCase().includes('payment') || 
+            d.name?.toLowerCase().includes('screenshot') ||
+            d.type === 'proof'
+          );
+          if (docProof) {
+            screenshotUrl = docProof.url || '';
+            screenshotFileName = docProof.name || '';
+          }
+        }
+
+        const utr = (paymentMeta.utrNumber || paymentMeta.txnId || app.payment_transaction_id || '').trim();
+        const amt = Number(paymentMeta.paidAmount || paymentMeta.amount || app.payment_amount || 50);
+
+        // Normalize Status
+        let derivedStatus: PaymentVerificationStatus = 'PENDING_VERIFICATION';
+        const rawStatus = (paymentMeta.status || app.status || '').toUpperCase();
+        if (rawStatus.includes('APPROV') || rawStatus === 'COMPLETED' || rawStatus === 'DOCUMENT_VERIFIED') {
+          derivedStatus = 'APPROVED';
+        } else if (rawStatus.includes('REJECT')) {
+          derivedStatus = 'REJECTED';
+        } else if (rawStatus.includes('RESUBMIT')) {
+          derivedStatus = 'RESUBMISSION_REQUESTED';
+        } else {
+          derivedStatus = 'PENDING_VERIFICATION';
+        }
+
+        const key = app.id;
+        const existing = mergedMap.get(key);
+
+        const synthesized: PaymentSubmission = normalizeSubmission({
+          id: paymentMeta.submissionId || existing?.id || `PAY-${app.id.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}`,
+          orderId: app.id,
+          applicationId: app.id,
+          customerId: app.customer_id || app.customerId || 'guest',
+          customerName: app.customer_name || 'Customer',
+          customerEmail: app.customer_email || 'applyallservices365@gmail.com',
+          customerMobile: app.customer_mobile || '9121992365',
+          serviceId: app.service_slug || 'srv_gen',
+          serviceTitle: app.service_title || 'Government & Statutory Service',
+          serviceType: app.service_type || 'Standard',
+          expectedAmount: amt,
+          paidAmount: amt,
+          amount: amt,
+          utrNumber: utr || existing?.utrNumber || `UTR-${app.id.slice(-6)}`,
+          screenshotUrl: screenshotUrl || existing?.screenshotUrl || '',
+          screenshotFileName: screenshotFileName || existing?.screenshotFileName || 'screenshot.jpg',
+          screenshotFileSize: screenshotFileSize || existing?.screenshotFileSize || '',
+          paymentDate: paymentMeta.date || app.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+          status: existing ? existing.status : derivedStatus,
+          submittedAt: paymentMeta.submittedAt || app.created_at || new Date().toISOString(),
+          verifiedAt: paymentMeta.verifiedAt || existing?.verifiedAt,
+          verifiedBy: paymentMeta.verifiedBy || existing?.verifiedBy,
+          adminNotes: app.admin_notes || paymentMeta.adminNotes || existing?.adminNotes || '',
+          rejectionReason: paymentMeta.rejectionReason || existing?.rejectionReason,
+          serviceActivated: derivedStatus === 'APPROVED' || existing?.serviceActivated
+        });
+
+        // Always merge, preserving verified or newer statuses
+        if (!existing) {
+          mergedMap.set(key, synthesized);
+        } else {
+          mergedMap.set(key, {
+            ...synthesized,
+            ...existing,
+            screenshotUrl: existing.screenshotUrl || synthesized.screenshotUrl,
+            utrNumber: existing.utrNumber || synthesized.utrNumber,
+            adminNotes: existing.adminNotes || synthesized.adminNotes
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Error reading from applications for payment submissions:', err);
+  }
+
+  const allSubmissions = Array.from(mergedMap.values()).sort(
+    (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+  );
+
+  setStored(SUBMISSIONS_KEY, allSubmissions);
+  return allSubmissions;
 }
 
 export async function getPaymentSubmissionsByCustomerId(customerId: string): Promise<PaymentSubmission[]> {
@@ -192,13 +357,13 @@ export async function submitPaymentProof(
 ): Promise<PaymentSubmission> {
   const all = getStored<PaymentSubmission[]>(SUBMISSIONS_KEY, []);
 
-  // Duplicate UTR prevention check
-  const trimmedUtr = submissionData.utrNumber.trim();
+  // Duplicate UTR prevention check (excluding rejected)
+  const trimmedUtr = (submissionData.utrNumber || '').trim();
   const existingUtr = all.find(
-    s => s.utrNumber.trim() === trimmedUtr && s.status !== 'REJECTED'
+    s => s.utrNumber.trim() === trimmedUtr && s.status !== 'REJECTED' && s.orderId !== submissionData.orderId
   );
-  if (existingUtr && existingUtr.orderId !== submissionData.orderId) {
-    throw new Error(`This UPI UTR / Transaction Reference Number (${trimmedUtr}) has already been submitted for another order (${existingUtr.orderId}). Duplicate submissions are blocked.`);
+  if (existingUtr && trimmedUtr.length >= 8) {
+    throw new Error(`This UPI UTR / Transaction Reference Number (${trimmedUtr}) has already been submitted for order ${existingUtr.orderId}. Duplicate submissions are blocked.`);
   }
 
   const now = new Date().toISOString();
@@ -216,7 +381,7 @@ export async function submitPaymentProof(
     serviceActivated: false
   });
 
-  // Check if an existing submission exists for this order (replace or append)
+  // Save to local cache
   const existingIdx = all.findIndex(s => s.orderId === submissionData.orderId);
   if (existingIdx >= 0) {
     all[existingIdx] = newSubmission;
@@ -225,7 +390,7 @@ export async function submitPaymentProof(
   }
   setStored(SUBMISSIONS_KEY, all);
 
-  // Sync to Supabase
+  // 1. Try to upsert into dedicated payment_submissions table
   try {
     await supabase.from('payment_submissions').upsert({
       id: newSubmission.id,
@@ -247,7 +412,79 @@ export async function submitPaymentProof(
       submitted_at: now
     });
   } catch (err) {
-    console.warn('Supabase payment submission upsert error, saved locally:', err);
+    // Non-fatal if table not yet created
+  }
+
+  // 2. CRITICAL: Upsert / Update public.applications table in Supabase
+  // This guarantees that any admin on any device immediately sees the submission!
+  try {
+    const paymentMeta = {
+      submissionId: newSubmission.id,
+      status: 'PENDING_VERIFICATION',
+      amount: newSubmission.paidAmount,
+      paidAmount: newSubmission.paidAmount,
+      expectedAmount: newSubmission.expectedAmount,
+      utrNumber: newSubmission.utrNumber,
+      screenshotUrl: newSubmission.screenshotUrl,
+      screenshotFileName: newSubmission.screenshotFileName,
+      screenshotFileSize: newSubmission.screenshotFileSize,
+      date: newSubmission.paymentDate,
+      submittedAt: now,
+      method: 'UPI (PhonePe Manual QR)'
+    };
+
+    const docProof = {
+      id: `doc-screenshot-${Date.now()}`,
+      name: `Payment Screenshot (${newSubmission.utrNumber})`,
+      url: newSubmission.screenshotUrl,
+      type: 'proof',
+      uploadedAt: now
+    };
+
+    const { data: existingApp } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('id', newSubmission.orderId)
+      .maybeSingle();
+
+    if (existingApp) {
+      const existingDocs = Array.isArray(existingApp.documents) ? existingApp.documents : [];
+      const updatedDocs = [
+        ...existingDocs.filter((d: any) => !d.id?.includes('screenshot') && d.type !== 'proof'),
+        docProof
+      ];
+
+      await supabase.from('applications').update({
+        status: 'under_review',
+        form_data: {
+          ...(existingApp.form_data || {}),
+          _payment: paymentMeta
+        },
+        documents: updatedDocs,
+        updated_at: now
+      }).eq('id', newSubmission.orderId);
+    } else {
+      await supabase.from('applications').insert({
+        id: newSubmission.orderId,
+        customer_id: newSubmission.customerId,
+        customer_name: newSubmission.customerName,
+        customer_mobile: newSubmission.customerMobile,
+        customer_email: newSubmission.customerEmail,
+        service_slug: newSubmission.serviceId,
+        service_title: newSubmission.serviceTitle,
+        service_type: newSubmission.serviceType || 'Standard',
+        form_data: {
+          _payment: paymentMeta
+        },
+        documents: [docProof],
+        status: 'under_review',
+        priority: 'standard',
+        created_at: now,
+        updated_at: now
+      });
+    }
+  } catch (appErr) {
+    console.warn('Failed to sync payment submission to applications table:', appErr);
   }
 
   // Record Audit Log
@@ -285,9 +522,15 @@ export async function verifyPaymentSubmission(
     : (options || { adminName: 'Super Administrator' });
 
   const all = getStored<PaymentSubmission[]>(SUBMISSIONS_KEY, []);
-  const idx = all.findIndex(s => s.id === submissionId);
+  let idx = all.findIndex(s => s.id === submissionId || s.orderId === submissionId);
+  
   if (idx < 0) {
-    throw new Error('Payment submission record not found.');
+    // If not found directly by id, refresh all submissions from DB and find
+    const refreshed = await getPaymentSubmissions();
+    idx = refreshed.findIndex(s => s.id === submissionId || s.orderId === submissionId);
+    if (idx < 0) {
+      throw new Error('Payment submission record not found.');
+    }
   }
 
   const current = all[idx];
@@ -322,7 +565,7 @@ export async function verifyPaymentSubmission(
   all[idx] = updated;
   setStored(SUBMISSIONS_KEY, all);
 
-  // Sync update to Supabase
+  // 1. Sync update to payment_submissions table
   try {
     await supabase.from('payment_submissions').update({
       payment_status: newStatus,
@@ -331,9 +574,41 @@ export async function verifyPaymentSubmission(
       admin_note: opts.notes || opts.reason,
       rejection_reason: action === 'REJECT' ? opts.reason : null,
       service_activated: serviceActivated
-    }).eq('id', submissionId);
+    }).eq('id', updated.id);
   } catch (err) {
-    console.warn('Supabase update submission error:', err);
+    // Non-fatal if table not yet created
+  }
+
+  // 2. CRITICAL: Sync update to public.applications table in Supabase
+  try {
+    const { data: existingApp } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('id', updated.orderId)
+      .maybeSingle();
+
+    if (existingApp) {
+      const existingFormData = existingApp.form_data || {};
+      const existingPayment = existingFormData._payment || {};
+      const updatedPayment = {
+        ...existingPayment,
+        status: newStatus,
+        verifiedAt: now,
+        verifiedBy: opts.adminName,
+        adminNotes: opts.notes || opts.reason,
+        rejectionReason: action === 'REJECT' ? opts.reason : undefined,
+        resubmissionReason: action === 'RESUBMIT' ? opts.notes || opts.reason : undefined
+      };
+
+      await supabase.from('applications').update({
+        status: action === 'APPROVE' ? 'document_verified' : (action === 'REJECT' ? 'rejected' : 'under_review'),
+        admin_notes: opts.notes || opts.reason || (action === 'APPROVE' ? 'Payment verified and service unlocked' : ''),
+        form_data: { ...existingFormData, _payment: updatedPayment },
+        updated_at: now
+      }).eq('id', updated.orderId);
+    }
+  } catch (appErr) {
+    console.warn('Failed to sync verification to applications table:', appErr);
   }
 
   // =========================================================================
@@ -341,13 +616,13 @@ export async function verifyPaymentSubmission(
   // =========================================================================
   if (action === 'APPROVE') {
     try {
-      // 1. Locate and update the customer application
+      // 1. Locate and update local customer application
       const apps = getStoredApplications();
       const targetApp = apps.find(a => a.id === updated.orderId || a.id === updated.applicationId);
       if (targetApp) {
         const activatedApp = {
           ...targetApp,
-          status: 'application_received' as const,
+          status: 'document_verified' as const,
           paymentStatus: 'payment_completed',
           paymentAmount: updated.paidAmount,
           paymentTransactionId: updated.utrNumber,
@@ -374,6 +649,8 @@ export async function verifyPaymentSubmission(
         });
       } else {
         await createInvoice({
+          id: `inv_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          invoiceNumber: `INV-${updated.orderId.replace(/[^a-zA-Z0-9]/g, '').slice(-8)}`,
           applicationId: updated.orderId,
           customerId: updated.customerId,
           customerName: updated.customerName,
@@ -448,7 +725,7 @@ export async function logPaymentAudit(data: Omit<PaymentAuditLog, 'id' | 'timest
     timestamp: new Date().toISOString()
   };
   logs.unshift(entry);
-  setStored(AUDIT_LOGS_KEY, logs.slice(0, 200)); // Keep latest 200 logs
+  setStored(AUDIT_LOGS_KEY, logs.slice(0, 200));
 }
 
 export function getPaymentAuditLogs(orderId?: string): PaymentAuditLog[] {

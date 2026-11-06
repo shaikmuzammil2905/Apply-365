@@ -503,3 +503,91 @@ CREATE POLICY "Anon full access customer_notifications" ON public.customer_notif
 -- Ensure application status check allows all 13 official lifecycle statuses
 ALTER TABLE public.applications DROP CONSTRAINT IF EXISTS applications_status_check;
 
+-- =========================================================================
+-- 15. MANUAL PHONEPE UPI QR PAYMENT SYSTEM TABLES
+-- =========================================================================
+
+-- PAYMENT SETTINGS (Admin dynamic QR code, UPI ID, beneficiary name)
+CREATE TABLE IF NOT EXISTS public.payment_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default_upi_settings',
+    upi_id TEXT NOT NULL DEFAULT '9346801736@ybl',
+    beneficiary_name TEXT NOT NULL DEFAULT 'KATIKAM JAYANTH',
+    qr_image_path TEXT NOT NULL DEFAULT '/payment/phonepe_qr.jpg',
+    payment_instructions TEXT DEFAULT '1. Scan the PhonePe QR code using PhonePe, GPay, Paytm or any UPI App.\n2. Verify the recipient name is KATIKAM JAYANTH before paying.\n3. Pay the exact order amount.\n4. Enter the 12-digit UTR/Ref number and upload your payment confirmation screenshot below for admin verification.',
+    is_enabled BOOLEAN DEFAULT TRUE,
+    currency TEXT DEFAULT '₹',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed default settings
+INSERT INTO public.payment_settings (id, upi_id, beneficiary_name, qr_image_path, is_enabled)
+VALUES ('default_upi_settings', '9346801736@ybl', 'KATIKAM JAYANTH', '/payment/phonepe_qr.jpg', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- PAYMENT SUBMISSIONS & PROOF VERIFICATION QUEUE
+CREATE TABLE IF NOT EXISTS public.payment_submissions (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    application_id TEXT,
+    user_id TEXT,
+    customer_id TEXT,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT,
+    customer_mobile TEXT NOT NULL,
+    service_id TEXT,
+    service_title TEXT NOT NULL,
+    service_type TEXT DEFAULT 'Standard',
+    expected_amount NUMERIC(10, 2) NOT NULL DEFAULT 50.00,
+    paid_amount NUMERIC(10, 2) NOT NULL DEFAULT 50.00,
+    utr_number TEXT NOT NULL,
+    screenshot_path TEXT,
+    screenshot_file_name TEXT,
+    screenshot_file_size TEXT,
+    payment_date TEXT,
+    payment_status TEXT DEFAULT 'PENDING_VERIFICATION' CHECK (payment_status IN ('PENDING_VERIFICATION', 'APPROVED', 'REJECTED', 'RESUBMISSION_REQUESTED', 'RESUBMISSION_REQUIRED')),
+    admin_note TEXT,
+    rejection_reason TEXT,
+    service_activated BOOLEAN DEFAULT FALSE,
+    verified_by TEXT,
+    verified_at TIMESTAMPTZ,
+    submitted_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PAYMENT AUDIT LOGS
+CREATE TABLE IF NOT EXISTS public.payment_audit_logs (
+    id TEXT PRIMARY KEY,
+    submission_id TEXT NOT NULL,
+    order_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    previous_status TEXT,
+    new_status TEXT,
+    admin_name TEXT,
+    admin_id TEXT,
+    reason TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for Payment Performance
+CREATE INDEX IF NOT EXISTS idx_payment_submissions_order_id ON public.payment_submissions(order_id);
+CREATE INDEX IF NOT EXISTS idx_payment_submissions_utr ON public.payment_submissions(utr_number);
+CREATE INDEX IF NOT EXISTS idx_payment_submissions_status ON public.payment_submissions(payment_status);
+CREATE INDEX IF NOT EXISTS idx_payment_audit_order_id ON public.payment_audit_logs(order_id);
+
+-- Enable RLS & Universal Policies for Payment Submissions & Settings
+ALTER TABLE public.payment_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payment_audit_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anon full access payment_settings" ON public.payment_settings;
+DROP POLICY IF EXISTS "Anon full access payment_submissions" ON public.payment_submissions;
+DROP POLICY IF EXISTS "Anon full access payment_audit_logs" ON public.payment_audit_logs;
+
+CREATE POLICY "Anon full access payment_settings" ON public.payment_settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Anon full access payment_submissions" ON public.payment_submissions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Anon full access payment_audit_logs" ON public.payment_audit_logs FOR ALL USING (true) WITH CHECK (true);
+
+
